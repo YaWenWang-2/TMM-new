@@ -1,0 +1,23 @@
+\begin{table}[!t]
+\caption{Initialization and adaptation at the selected student checkpoint. Mean/U100 average twelve/three conditions. The GT-only rows compare initialization; Full versus F5 tests adaptation. Schedules and full objectives are in the supplement.}
+\label{tab:controls}
+\centering\scriptsize
+\setlength{\tabcolsep}{2.1pt}
+\renewcommand{\arraystretch}{1.06}
+\resizebox{\columnwidth}{!}{%
+\begin{tabular}{lrrrr}
+\toprule
+Configuration & Mean PSNR & U100 PSNR & Mean SSIM & U100 SSIM\\
+\midrule
+\multicolumn{5}{l}{\textit{Initialization under GT-only reconstruction}}\\
+GT-only, scratch & 28.430 & 25.940 & -- & --\\
+GT-only, initialized & 28.504 & 26.129 & .7905 & .7809\\
+\midrule
+\multicolumn{5}{l}{\textit{Adapting the inherited restoration network}}\\
+Full & 28.513 & 26.108 & .7903 & .7796\\
+F5: frozen restoration & 28.257 & 25.585 & .7851 & .7654\\
+\bottomrule
+\end{tabular}
+}%
+
+\end{table}

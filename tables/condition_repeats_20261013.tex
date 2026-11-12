@@ -1,0 +1,19 @@
+\begin{table}[!t]
+\caption{Fixed-teacher interventions on 100 paired Urban100 images per width, without retraining. The two rows are independently trained instances of the same standard recurrent teacher (batch 64, eight groups, ten blocks); they test reproducibility of the recurrence intervention, not hardware effects. $\Delta$ is intervention minus Full. Only widths within training support are shown.}
+\label{tab:condition_repeats}
+\centering\scriptsize
+\setlength{\tabcolsep}{2.5pt}
+\resizebox{\columnwidth}{!}{%
+\begin{tabular}{llrrrr}
+\toprule
+Teacher instance & $\sigma$ & Full & $\Delta$ Nonrec. & $\Delta$ One-shot & $\Delta$ Shared\\
+\midrule
+Standard recurrent teacher A & 1.2 & 26.738 & $-5.136$ & $-4.469$ & $-3.130$\\
+Standard recurrent teacher A & 2.4 & 25.346 & $-3.354$ & $-3.183$ & $-2.471$\\
+Standard recurrent teacher A & 3.6 & 25.428 & $-3.651$ & $-3.437$ & $-3.647$\\
+Standard recurrent teacher B & 1.2 & 26.692 & $-5.255$ & $-5.395$ & $-4.115$\\
+Standard recurrent teacher B & 2.4 & 25.421 & $-4.113$ & $-3.893$ & $-3.679$\\
+Standard recurrent teacher B & 3.6 & 25.470 & $-4.537$ & $-4.112$ & $-4.586$\\
+\bottomrule
+\end{tabular}}
+\end{table}

@@ -1,0 +1,16 @@
+\begin{table}[!t]
+\caption{Nonrecurrent minus Full PSNR (dB). Primary: $\sigma\in\{1.2,2.4,3.6\}$; additional: $\{0.8,1.6,2.0,2.8,3.2,4.0\}$. Intervals cluster 100 images across widths. Standard teachers A and B share the same recurrent architecture and training recipe; the alternative-budget teacher changes the update budget.}
+\label{tab:teacher_width_summary}
+\centering\scriptsize
+\setlength{\tabcolsep}{3pt}
+\resizebox{\columnwidth}{!}{%
+\begin{tabular}{lrr}
+\toprule
+Teacher instance & Primary (3) & Additional (6), 95\% CI\\
+\midrule
+Standard recurrent teacher A & $-4.047$ & $-3.916\;[-4.300,-3.559]$\\
+Standard recurrent teacher B & $-4.635$ & $-4.489\;[-4.887,-4.108]$\\
+Alternative-budget teacher & $-1.776$ & $-1.926\;[-2.170,-1.706]$\\
+\bottomrule
+\end{tabular}}
+\end{table}

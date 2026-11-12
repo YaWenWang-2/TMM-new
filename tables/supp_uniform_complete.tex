@@ -1,0 +1,24 @@
+\begin{table*}[t]
+\caption{Complete corrected replay: PSNR (dB) and SSIM for four datasets and three blur widths. Full and the separately trained uniform model retain the residual branch. Each variant supplies one recovered training run; the the two evaluation states do not constitute independent repetitions.}
+\centering\footnotesize
+\setlength{\tabcolsep}{2.2pt}
+\begin{tabular}{lc|ccc|ccc|ccc|ccc}
+\toprule
+Ensemble & Run & \multicolumn{3}{c|}{Set5} & \multicolumn{3}{c|}{Set14} & \multicolumn{3}{c|}{B100} & \multicolumn{3}{c}{Urban100}\\
+& &1.2&2.4&3.6&1.2&2.4&3.6&1.2&2.4&3.6&1.2&2.4&3.6\\
+\midrule
+\multicolumn{14}{l}{PSNR}\\
+Input-dependent & A & 32.493 & 32.276 & 31.095 & 28.945 & 28.739 & 27.686 & 27.809 & 27.716 & 27.070 & 26.657 & 26.326 & 25.342\\
+Uniform, retrained & A & 32.520 & 32.282 & 31.113 & 28.935 & 28.723 & 27.706 & 27.815 & 27.713 & 27.073 & 26.648 & 26.311 & 25.383\\
+Input-dependent & B & 32.508 & 32.276 & 31.104 & 28.940 & 28.736 & 27.707 & 27.808 & 27.713 & 27.072 & 26.655 & 26.328 & 25.347\\
+Uniform, retrained & B & 32.510 & 32.259 & 31.108 & 28.937 & 28.731 & 27.730 & 27.812 & 27.709 & 27.074 & 26.654 & 26.318 & 25.392\\
+\midrule
+\multicolumn{14}{l}{SSIM}\\
+Input-dependent & A & 0.8982 & 0.8930 & 0.8693 & 0.7875 & 0.7788 & 0.7407 & 0.7415 & 0.7347 & 0.7006 & 0.8014 & 0.7887 & 0.7487\\
+Uniform, retrained & A & 0.8984 & 0.8931 & 0.8699 & 0.7870 & 0.7784 & 0.7407 & 0.7412 & 0.7346 & 0.7009 & 0.8010 & 0.7885 & 0.7504\\
+Input-dependent & B & 0.8983 & 0.8930 & 0.8697 & 0.7873 & 0.7787 & 0.7411 & 0.7414 & 0.7347 & 0.7009 & 0.8014 & 0.7887 & 0.7488\\
+Uniform, retrained & B & 0.8983 & 0.8929 & 0.8698 & 0.7872 & 0.7786 & 0.7413 & 0.7414 & 0.7348 & 0.7012 & 0.8012 & 0.7888 & 0.7509\\
+\bottomrule
+\end{tabular}
+\label{tab:supp_uniform_training}
+\end{table*}

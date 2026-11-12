@@ -1,0 +1,21 @@
+% New reported-reference comparison; DEDBSR is the verified selected student-checkpoint evaluation, not the original Table I record.
+\begin{table*}[!t]
+\caption{Additional noise-free isotropic $\times4$ comparison with CdCL-S/L. Reference PSNRs are published results; \ours uses the selected student checkpoint, distinct from Table~\ref{tab:main}. Bold/underline denote the highest/second-highest distinct scores. $\dagger$: THOP profiles at $180\times320$ LR, counting one multiply--accumulate (MAC) as one operation. Other costs are cited values and do not share a unified profiling protocol.}
+\label{tab:additional_cdcl}
+\centering
+\scriptsize
+\setlength{\tabcolsep}{2.35pt}
+\renewcommand{\arraystretch}{1.03}
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{lcr|ccc|ccc|ccc|ccc}
+\toprule
+\multirow{2}{*}{Method} & \multirow{2}{*}{Params.} & \multirow{2}{*}{Reported/profiled cost (G)$\downarrow$} & \multicolumn{3}{c|}{Set5} & \multicolumn{3}{c|}{Set14} & \multicolumn{3}{c|}{B100} & \multicolumn{3}{c}{Urban100}\\
+& & & 1.2 & 2.4 & 3.6 & 1.2 & 2.4 & 3.6 & 1.2 & 2.4 & 3.6 & 1.2 & 2.4 & 3.6\\
+\midrule
+CdCL-S~\cite{yuan2025cdcl} & 2.9M & 130.85$^{\dagger}$ & 32.48 & 32.23 & 31.04 & 28.79 & 28.64 & \second{27.73} & 27.73 & 27.63 & 27.00 & 26.36 & 26.06 & 25.20\\
+CdCL-L~\cite{yuan2025cdcl} & 5.9M & 201.68 & \best{32.52} & \second{32.25} & \best{31.12} & \second{28.84} & \second{28.71} & \best{27.85} & \second{27.79} & \second{27.70} & \second{27.05} & \second{26.58} & \second{26.28} & \best{25.37}\\
+\midrule
+\ours & 4.1M & 245.59$^{\dagger}$ & \second{32.50} & \best{32.27} & \second{31.10} & \best{28.95} & \best{28.74} & 27.69 & \best{27.81} & \best{27.72} & \best{27.07} & \best{26.66} & \best{26.33} & \second{25.34}\\
+\bottomrule
+\end{tabular}}
+\end{table*}

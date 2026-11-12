@@ -1,0 +1,25 @@
+\begin{table}[t]
+\caption{Mechanism-level conditions and inference cost. THOP uses $180\times320$ LR input and one MAC per operation; the $64\times64$ row uses PyTorch's two-FLOP-per-MAC convention. DEDBSR transfer conditions share one forward graph.}
+\label{tab:supp_efficiency_conditions}
+\centering\scriptsize
+\setlength{\tabcolsep}{1.8pt}
+\renewcommand{\arraystretch}{0.94}
+\resizebox{\columnwidth}{!}{%
+\begin{tabular}{lrrrl}
+\toprule
+Condition & Params. & Cost & Mean/U100 SSIM & Interpretation\\
+\midrule
+\multicolumn{5}{l}{\textit{DEDBSR transfer and routing conditions}}\\
+Full adaptive & 4.1M & 245.5907 G & .7903/.7796 & reference\\
+GT-only init. & 4.1M & 245.5907 G & .7905/.7809 & no output KD\\
+Frozen inherited & 4.1M & 245.5907 G & .7851/.7654 & no adaptation\\
+Uniform routing (two states) & 4.1M & 245.5907 G & .7903--.7905/.7796--.7803 & fixed weights\\
+\midrule
+\multicolumn{5}{l}{\textit{Cross-model profiling references}}\\
+CdCL-S & 2.9M & 130.8508 G & --/-- & no matched SSIM\\
+CdCL-L & 5.9M & 201.68 G & --/-- & reported profile\\
+LightBSR & 3.26M & 181.1965 G & --/-- & architecture only\\
+DEDBSR student, $64^2$ & 4.1M & 34.9444 GF & --/-- & timing only\\
+\bottomrule
+\end{tabular}}
+\end{table}

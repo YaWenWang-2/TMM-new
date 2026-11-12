@@ -1,0 +1,199 @@
+\documentclass[10pt,journal,letterpaper]{IEEEtran}
+\usepackage{xr-hyper}
+\input{preamble}
+\externaldocument[main-]{main}
+\title{Supplementary Material for DEDBSR: Deep Ensemble Distillation for Blind Image Super-Resolution}
+\input{authors}
+\markboth{DEDBSR: Supplementary Material}{DEDBSR}
+\begin{document}
+\maketitle
+\input{main_counters}
+
+\section{Implementation and Training}
+\label{sec:supp_impl}
+\subsection{Data and Architecture}
+We train on 3,450 DF2K images (800 DIV2K and 2,650 Flickr2K). Flipped and rotated $256\times256$ HR crops yield $64\times64$ LR inputs. The primary setting applies $21\times21$ isotropic Gaussian blur, bicubic $\times4$ downsampling, and LR rounding/clamping to $[0,255]$, followed by normalization. No noise is added.
+
+Teachers sample $\sigma\sim\mathcal U[0.2,4]$. Student sampling is 75\% uniform and 25\% an equal mixture centered at $1.2,2.4,3.6$, with standard deviation 0.15 and clipping to $[0.2,4]$. The main test widths therefore receive increased training density; intermediate widths within this interval are not out of distribution.
+
+The teacher concatenates RGB LR with a broadcast 15-dimensional kernel PCA code (18 channels, no noise-level channel); the student uses RGB alone. Initial conditions have 64 channel entries and eight spatial channels.
+
+Each of eight groups contains ten modulated blocks, a ConvNeXt block, and a convolution. Group-specific updates act on conditions before each group. The spatial path uses a standard $5\times5$ convolution; the subsequent ConvNeXt block includes a $7\times7$ depthwise convolution.
+
+The $64\!\rightarrow\!16\!\rightarrow\!8$ router reads the initial channel condition. Its last layer and the residual fusion convolution start at zero; the fusion-gate logit starts at $-1.5$.
+
+\subsection{Checkpoint Assignments}
+Main Table~\ref{main-tab:main} gives the original benchmark. The additional CdCL comparison and transfer controls use the student model initialized from the recorded teacher checkpoint. Both indices count cumulative training epochs: the designated student model follows the recorded warm-up and reconstruction stages; the scheduled endpoint is not used in this comparison. Motivation images use a teacher checkpoint; the larger prefix probe uses a separate teacher checkpoint; the teacher/student valley probe uses recorded teacher and student models.
+
+Figure~\ref{main-fig:qualitative} reproduces the img092 comparison in the upper panel and the original img093 comparison in the lower panel, preserving their existing crops, method labels, and arrangement.
+
+\subsection{Teacher Objective}
+Four patches from each image share a sampled kernel. Let $q_{b,i}$ and $k_{b,j}$ be L2-normalized 128-dimensional query and momentum-key projections. For $P=4$ patches, all ordered within-image pairs $i\ne j$ are positives:
+\begin{equation}
+\begin{split}
+\mathcal L_{\rm con}={}&-\frac{1}{BP(P-1)}\sum_{b,i}\sum_{j\ne i}
+\log\frac{e^{q_{b,i}^{\mathsf T}k_{b,j}/\tau}}
+{e^{q_{b,i}^{\mathsf T}k_{b,j}/\tau}+Z_{b,i}},\\
+Z_{b,i}={}&\sum_{v\in\mathcal Q}e^{q_{b,i}^{\mathsf T}v/\tau}.
+\end{split}
+\label{eq:supp_con}
+\end{equation}
+The FIFO queue contains 8,192 keys, $\tau=0.07$, and key-encoder momentum is 0.999. Only the first-patch key is enqueued. Queue entries are not filtered by degradation distance; the PCA code conditions the encoder without reweighting pairs. The first 100 epochs use $\mathcal L_{\rm con}$ alone. During the following 600 epochs, first-patch RGB reconstruction is added with unit weight:
+\begin{equation}
+\mathcal L_T=\mathcal L_{\rm con}+\frac1B\sum_b
+\operatorname{mean}|255\hat{\mathbf x}_{T,b,1}-\mathbf x^{255}_{b,1}|.
+\label{eq:supp_teacher}
+\end{equation}
+The target $\mathbf x^{255}$ lies in $[0,255]$. The student inherits the specified teacher checkpoint rather than the scheduled endpoint.
+
+\subsection{Student Training}
+Condition alignment acts only on initial states. We use MSE on the spatial state to preserve its amplitude, MAE on the channel state to reduce sensitivity to outliers, and KL on the normalized channel distribution to retain relative assignments:
+\begin{equation}
+\begin{split}
+\mathcal L_{\rm cond}={}&\operatorname{MSE}(\mathbf s_S,\mathbf s_T)
++D_{\rm KL}(p_T\Vert p_S)\\
+&+0.1\operatorname{MAE}(\mathbf c_S,\mathbf c_T),\quad
+p=\operatorname{softmax}(\mathbf c/0.15).
+\end{split}
+\label{eq:supp_student_cond}
+\end{equation}
+In the main paper's condition-alignment objective, $\lambda_c=0.1$ and $T=0.15$; the equation above instantiates those coefficients. MSE and MAE are element means; KL sums over channels and averages over samples without an extra temperature-squared factor. Teacher targets are detached. Later conditions, increments, and routes receive no direct alignment loss. Warm-up minimizes $\mathcal L_{\rm cond}$; the joint objective is
+\begin{equation}
+\begin{aligned}
+\mathcal L_S&=\mathcal L_{\rm GT}+\mathcal L_{\rm cond},\\
+\mathcal L_{\rm GT}&=\mathcal L_{\rm rec}+\lambda_o(t)\mathcal L_{\rm out}.
+\end{aligned}
+\label{eq:supp_student}
+\end{equation}
+where $\mathcal L_{\rm rec}$ is the GT reconstruction term and the GT-guided composite $\mathcal L_{\rm GT}$ has the same meaning as in the main paper. Here $\lambda_{\rm rec}=1$ and $\lambda_o(t)$ corresponds to $\lambda_{\rm out}(t)$ in the main paper. Reconstruction and output-imitation losses use mean absolute RGB error after multiplying predictions by 255. For a detached patch gate $m_b=\mathbb1[\ell_{T,b}<\ell_{S,b}]$, device $d$ computes
+\begin{equation}
+\mathcal L_{\rm out}=
+\frac{\sum_{b\in\mathcal B_d}m_b\operatorname{mean}|255\hat{\mathbf x}_{S,b}-255\hat{\mathbf x}_{T,b}|}
+{\max(1,\sum_{b\in\mathcal B_d}m_b)}.
+\label{eq:supp_output}
+\end{equation}
+Distributed training averages device-local losses; it does not normalize by a global count of accepted patches. At SR epoch $t\ge1$,
+\begin{equation}
+\lambda_o(t)=0.05+0.075\left[1+\cos\frac{\pi\min(t,300)}{300}\right].
+\label{eq:supp_lambda}
+\end{equation}
+GT acts on every joint-stage patch, but not during condition warm-up. Closing the output gate leaves condition alignment and inherited initialization intact. Thus it removes direct output imitation on teacher-worse patches, without guaranteeing freedom from all teacher-induced errors. In the frozen 400-patch risk probe, the rule closed all 138 teacher-worse patches and opened all 262 teacher-better patches. This verifies the intended risk partition only; it does not imply a positive post-training gain.
+
+Student training uses four GPUs, 16 samples per GPU, Adam $(0.9,0.99)$, gradient clipping at 1.0, and EMA decay 0.999. The SR learning rate warms up for five epochs to $2\times10^{-4}$, then decays to $10^{-6}$ over 600 SR epochs. Table~\ref{tab:supp_schedule} specifies the historical controls in main Table~\ref{main-tab:controls} at the designated student model; their full metrics appear in Table~\ref{tab:supp_transfer_complete}.
+
+Full and F1 have matching recorded teacher initialization, different-budget batch-64 training, and 100 condition-warm-up plus 500 reconstruction epochs. F1 removes direct output KD and exceeds Full by 0.0094~dB in the twelve-condition mean; each wins six conditions. This historical comparison does not isolate the gate, because removing output KD also removes all direct teacher-output supervision.
+
+GT-only/F2/F4 instead have 600 reconstruction-stage epochs. F3 uses condition alignment alone throughout, with no reconstruction stage. F4 disables the GT-relative gate and uses only output KD, without GT reconstruction or condition alignment. F5 freezes the restoration network, including its upsampler, and updates the LR encoder and condition projections. These distinctions prevent pooling all rows into a single matched loss comparison.
+
+The additional Gate-on, Gate-off, and No-output-KD diagnostics start from the same student checkpoint and receive the same 3 recovery epochs and 8,409 updates. Their twelve-condition equal-mean PSNRs are 28.5203, 28.5280, and 28.5170~dB, respectively: Gate-on minus Gate-off is $-0.0077$~dB, and Gate-on minus No-output-KD is $+0.0032$~dB. These means first average images within each dataset--width condition and then weight all twelve conditions equally, as in the other aggregate tables. Pooling the 657 image--width observations instead gives 27.0365, 27.0469, and 27.0384~dB; the corresponding Gate-on differences are $-0.0104$ and $-0.0019$~dB. Both aggregations are reported here to distinguish their weighting conventions.
+
+Each branch also evaluates the separate 100-image Urban100 stress condition at $\sigma=4.6$, where Gate-on minus Gate-off/No-output-KD is $-0.1327/-0.0567$~dB.
+
+The fixed teacher-worse subset is defined at initialization, before any recovery outcome is observed. On its 138 patches, Gate-on minus Gate-off is $-0.0694$~dB, with 95\% fixed-patch bootstrap interval $[-0.0824,-0.0561]$~dB. Over all 400 fixed patches, the difference is $-0.0704$~dB with interval $[-0.0840,-0.0571]$; Gate-on minus No-output-KD is $-0.0036$~dB with interval $[-0.0162,+0.0092]$.
+
+These intervals use 10,000 resamples and measure patch-sampling uncertainty, not training-run variability. An additional output-guidance isolation removes condition KD while retaining GT reconstruction and output KD; Gate-on minus Gate-off is $-0.0474$~dB over all 400 patches, with 95\% interval $[-0.0609,-0.0349]$~dB. This isolation differs from historical F4, which has no GT loss. The finite recovery results separate the correctness of the risk-partition rule from its training effect and do not establish a positive causal accuracy gain for the gate.
+
+\input{tables/supp_schedule}
+\input{tables/supp_transfer_complete}
+
+\section{Uniform-Weight Evaluation}
+\label{sec:supp_uniform_training}
+Table~\ref{tab:supp_uniform_training} gives the complete corrected Full/uniform replay. Both models execute all groups and retain the residual branch and fusion projection; the uniform model replaces the route by $1/8$. Initialization, data, different-budget batch-64 schedule, and evaluation device are matched. Stored architecture size is retained, but the uniform route does not use the router's learned outputs. This is not a learned-global-static or an active-capacity-matched no-ensemble control.
+
+PSNR/SSIM use quantized luminance, a four-pixel border crop, and the same LR-generation pipeline. Dataset--width scores average image-level metrics; the overall mean weights the twelve conditions equally. The corrected mean PSNRs are Full/uniform 28.513/28.519 at the designated student model and 28.516/28.519 at the later evaluation state. This replay is separate from the original benchmark aggregates. One recovered run per variant supports near parity, without a run-level variance claim; the two evaluation states are not independent repetitions.
+
+\input{tables/supp_uniform_complete}
+
+\section{Condition and Depth Diagnostics}
+\label{sec:supp_teacher}
+\subsection{Condition Paths}
+Standard recurrent teachers A and B are independently trained eight-group, ten-block instances using batch 64 and the same recorded 100+600-epoch recipe; each is evaluated with its own PCA. Their tensors and PCA differ, although both configurations record seed 1. The alternative-budget teacher uses 44,850 training samples per epoch versus 193,200 for the standard recipe and follows a different update budget. These records are neither different-seed statistics nor equal-budget replicas and are not pooled.
+
+One-shot bypasses condition updates; nonrecurrent applies each group's distinct update to the initial state; shared recursively reuses the first group's module. Other components remain fixed. At $\sigma=1.2,2.4,3.6$, all three interventions lose on every Urban100 image for standard teachers A and B. Table~\ref{tab:supp_condition_ci} gives nonrecurrent intervals. The alternative-budget teacher's nonrecurrent penalties are 2.391/2.849/0.088~dB; the last has interval $[0.034,0.139]$ and 80/100 recurrent wins. 
+
+\input{tables/condition_repeats_20261013}
+
+\input{tables/supp_teacher_ci}
+
+The expanded evaluation adds six widths: $\sigma=0.8$, $1.6$, $2.0$, $2.8$, $3.2$, and $4.0$. Primary-width results use the identical checkpoints. Its 6,000 image--width--variant records cover standard teachers A/B and the alternative-budget teacher, ten widths, two paths, and 100 Urban100 images. Table~\ref{tab:teacher_width_summary} summarizes width groups; Table~\ref{tab:supp_width_complete} preserves each additional width. Standard teacher A has one exception at $\sigma=2.8$; the alternative-budget teacher has three at $\sigma=3.2$. These widths lie inside training support.
+
+\input{tables/teacher_width_summary_20261013}
+
+\input{tables/supp_width_complete_20261013}
+
+We use 20,000 paired-bootstrap draws with seed 20261013. Single-width intervals resample 100 images; aggregated intervals first average the selected widths within each image and resample the 100 image clusters. Width evaluations of one image are therefore not treated as independent observations. Intervals describe image sampling, not training variability.
+
+At the predeclared stress width $\sigma=4.6$, nonrecurrent instead improves standard teachers A and B by 0.543/0.933~dB, winning 96/100 and 99/100 images, respectively; teacher B's interval is $[0.833,1.040]$~dB. Teacher A's one-shot/shared interventions also improve by 0.394/0.479~dB (97/100 and 99/100 wins, respectively). The alternative-budget teacher behaves differently: recurrence retains a 0.139~dB advantage, interval $[0.117,0.164]$, on 93/100 images. Thus boundary failure depends on the trained checkpoint; this test neither establishes a universal reversal nor evaluates final-student robustness. No checkpoint or hyperparameter is selected using these diagnostics.
+
+\noindent\textbf{Matched recovery protocol.}
+Full, nonrecurrent, one-shot, and shared-update variants start from the same teacher checkpoint and PCA basis. All receive 30 additional reconstruction epochs (90,540 updates) on DF2K, with seed 20261012, batch 64 on one GPU, Adam $(0.9,0.99)$, EMA decay 0.999, and the original contrastive-plus-reconstruction loss. A five-epoch warm-up reaches $2\times10^{-5}$ before decay to $10^{-6}$. Evaluation uses the final EMA, with no test-based selection. Full and nonrecurrent each train 4,582,084 parameters; one-shot and shared update freeze unused update modules and train 4,430,852 and 4,449,756 parameters, respectively. The latter two are therefore not active-capacity-matched controls. All four variants inherit recurrent-teacher initialization, making this a limited-budget recovery comparison rather than independent training from scratch.
+
+Table~\ref{tab:supp_shared_recovery_full} reports every variant and each dataset mean. Main Table~\ref{main-tab:shared_recovery} gives the compact comparison. Full-minus-nonrecurrent/one-shot/shared-update differences over the twelve equally weighted primary conditions are 0.2365/0.2497/0.0260~dB; Full leads 10/12, 10/12, and 11/12 conditions. Their paired 95\% image-cluster intervals are $[0.1816,0.3016]$, $[0.1932,0.3154]$, and $[0.0189,0.0341]$~dB, respectively. On Urban100 averaged over the three widths, the differences are 0.5244/0.5445/0.0584~dB with intervals $[0.4560,0.6006]$, $[0.4748,0.6218]$, and $[0.0486,0.0696]$. We use 20,000 paired bootstrap draws with statistical seed 20261020, resampling images within each dataset and retaining all three widths per image; the overall statistic weights datasets equally. These intervals describe image sampling rather than training-run variance and are not adjusted for multiple comparisons. Shared update nearly matches Full, limiting the independent benefit attributable to group-specific update parameters.
+
+Recovery does not make Full uniformly better. On Urban100 at $\sigma=1.2$, Full-minus-nonrecurrent and Full-minus-one-shot are $-0.0233$ and $-0.0095$~dB. On B100, their three-width SSIM means are 0.72946 and 0.72940, exceeding Full's 0.72858. At the separately evaluated stress width $\sigma=4.6$, one-shot and shared update exceed Full on all 100 images (Table~\ref{tab:supp_recovery_stress}). The Full-minus-nonrecurrent stress PSNR interval spans zero, while its SSIM is lower. These teacher results delimit extrapolation after recovery and do not establish final-student robustness.
+
+\begin{table*}[t]
+\caption{Teacher recovery outside training support: Urban100 at $\sigma=4.6$, excluded from the twelve-condition means. All variants use the final matched-recovery EMA. Intervals use the paired image bootstrap described above; they do not measure training-run variance.}
+\label{tab:supp_recovery_stress}
+\centering\footnotesize
+\setlength{\tabcolsep}{7pt}
+\begin{tabular*}{\textwidth}{@{\extracolsep{\fill}}lrrll@{}}
+\toprule
+Condition path & PSNR & SSIM & Full $-$ row (dB), 95\% CI & Images above Full\\
+\midrule
+Full & 20.8145 & 0.35165 & -- & --\\
+Nonrecurrent & 20.7609 & 0.39065 & $+0.0536\;[-0.0434,0.1453]$ & 34/100\\
+One-shot & \best{23.5599} & \best{0.67362} & $-2.7454\;[-3.0348,-2.4697]$ & 100/100\\
+Shared update & 23.2707 & 0.65453 & $-2.4562\;[-2.6964,-2.2278]$ & 100/100\\
+\bottomrule
+\end{tabular*}
+\end{table*}
+
+\input{tables/supp_shared_recovery_full_20261028}
+
+\subsection{Depth and Residual Composition}
+
+The prefix probe executes 2, 6, or 10 blocks within every group of a privileged checkpoint on fixed Urban100 indices 50--59 at $\sigma=2.4$. Figure~\ref{fig:supp_depth_frequency} reports the Fourier curves averaged over all ten images. For each image, let $B$ be bicubic upsampling of LR and define $C_S=\mathcal F(W(SR-B))$ and $C_H=\mathcal F(W(HR-B))$, after channelwise mean removal. Here $W$ is a unit-RMS Hann window. The plotted band error is $\sqrt{\operatorname{mean}|C_S-C_H|^2/(\operatorname{mean}|C_H|^2+\epsilon)}$, averaged over RGB channels and frequencies within each band, then over images. Normalized radial bands are $[0,0.25)$, $[0.25,0.5)$, and $[0.5,1]$, with the corner Nyquist radius set to one. Condition updates and group tails stay active. A larger probe using a separate teacher checkpoint uses 100 images and three widths: mean normalized complex HR error improves from prefix 2 to 10 in all nine width--frequency conditions, and final-increment alignment with the missing HR residual ranges from 0.36 to 0.75. Seven of 900 image--width--band comparisons worsen; the $\sigma=2.4$ high-band mean also rises from prefix 4 to 6. Prefixes are not separately trained shallow models.
+
+
+\begin{figure}[!t]
+\centering
+\includegraphics[width=\columnwidth]{figures/motivation/depth_frequency_v29.pdf}
+\caption{Frequency-domain errors for different execution prefixes of one trained privileged network, averaged over ten fixed Urban100 images. Each curve corresponds to one radial frequency band; lower is better. This probe changes the executed blocks while retaining the trained condition updates and reconstruction head.}
+\label{fig:supp_depth_frequency}
+\end{figure}
+
+\begin{figure}[!t]
+\centering
+\includegraphics[width=\columnwidth]{figures/motivation/depth_sweep_diagnostic_20261029.pdf}
+\caption{Historical architectural sweep: equal-weight mean over four datasets and three blur widths. The reported 8--14-block sweep also appears, with the updated twelve-block aggregate, in main Fig.~\ref{main-fig:motivation}(a) and is distinct from the fixed-teacher Fourier prefixes. Ten blocks have the highest reported mean, not a universal depth optimum.}
+\label{fig:supp_depth_sweep_visual}
+\end{figure}
+
+Figure~\ref{fig:supp_depth_sweep_visual} gives the complete historical depth curve also used in main Fig.~\ref{main-fig:motivation}(a). These values come from the original reported table; checkpoint identities and training conditions for the complete sweep have not been independently reconciled. In the historical architectural sweep, 8 through 14 blocks yield overall means of 28.39, 27.87, 28.51, 28.18, 28.46, 28.38, and 28.35~dB. The twelve-block aggregate in the main figure was subsequently corrected to 28.42~dB; the archived per-condition values shown here are retained pending reconciliation. The independent depth retest gives a separate strict-load retest of teachers with 10, 12, and 14 blocks at a teacher checkpoint, each with its own PCA. The fixed indices 50--99 of Urban100 and B100 give a six-condition mean advantage of 0.117~dB for twelve over ten blocks, while fourteen is worse in every condition. The ten-block run used one GPU and batch 64; deeper runs used four GPUs, batch 16, and microbatch 8. These differences preclude a depth-only causal interpretation. Ten is the benchmark reference, not a universal or independently validation-selected optimum.
+
+
+\begin{figure}[!t]
+\centering
+\includegraphics[width=\columnwidth]{figures/motivation/route_response_diagnostic_20261029.pdf}
+\caption{Held-out response to residual-weight substitution. Curves indicate input blur widths; the horizontal axis gives the replacement prototype width and the vertical axis the PSNR change from matched weights. Shading shows paired image-bootstrap 95\% intervals. Prototypes use the first 50 Urban100 images and evaluation the remaining 50. All group corrections and the reconstruction head stay fixed; only weights change. This tests composition sensitivity, not an independent training gain from dynamic weights.}
+\label{fig:supp_route_response}
+\end{figure}
+
+Figure~\ref{fig:supp_route_response} retains the quantitative route response moved from the main motivation figure. For the route-substitution visualization, the first 50 images estimate each blur-width prototype and the remaining 50 evaluate it. Across seven widths, matched prototypes exceed mismatched prototypes by 0.530~dB on Urban100 and 0.410~dB on B100 on average. Nevertheless, 9/42 and 3/42 mismatches improve PSNR, respectively. These fixed-network results diagnose sensitivity; Table~\ref{tab:supp_uniform_training} remains the relevant retraining control.
+
+\section{Degradations and Inference Cost}
+\label{sec:supp_efficiency}
+\subsection{Anisotropic Blur and Noise}
+The separately trained anisotropic model samples principal-axis standard deviations in $[0.2,4]$, orientation in $[0,\pi)$, and Gaussian noise standard deviation in $[0,25]$ on the 8-bit scale. Squared axis values form covariance eigenvalues. Main Table~\ref{main-tab:anisotropic} includes the complete nine-kernel B100 comparison from LightBSR Setting~2, with baseline numbers from its Table~4. The mean margins over official LightBSR are 0.018/0.016~dB at noise 5/10: 15 conditions favor DEDBSR, two tie, and one favors LightBSR. These cross-paper differences do not establish significance or zero-shot robustness.
+
+
+\subsection{Operation Counts and Runtime}
+\input{tables/supp_efficiency_conditions}
+
+We profile complete inference with THOP 0.1.1 at batch one, using $180\times320$ RGB LR inputs and $\times4$ outputs. DEDBSR requires 245.5907~G operations; CdCL-S and LightBSR require 130.8508 and 181.1965~G. Convolution and linear MACs count as one operation; pooling and BatchNorm follow THOP defaults. Counts are executed profiles, not area extrapolations.
+
+DEDBSR and official CdCL-S weights are loaded; LightBSR uses its published architecture without trained weights and therefore supplies complexity only. Its implementation has 3,259,971 parameters versus the paper's rounded 3.1M, while its reported 206.16~G uses $256\times256$ input. CdCL-S's reported 91.68~G differs from our released-implementation profile. These mixed sources do not establish a unified efficiency ranking.
+
+A separate $64\times64$ LR test of the archived student implementation uses RTX 4090 D, FP32, batch one, 20 warm-ups, and 100 CUDA-event forwards: 49.13~ms mean latency and 189.6~MB peak memory. PyTorch counts 34.9444~GFLOPs at this size (two FLOPs per MAC), so this is distinct from the THOP profile. All profiles exclude training costs. Parameter entries retain the reported model-size convention; the archived runtime and operation profiles do not independently validate that parameter count.
+\end{document}

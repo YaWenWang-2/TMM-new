@@ -1,0 +1,36 @@
+# LaTeX build files
+*.aux
+*.bbl
+*.blg
+*.log
+*.out
+*.toc
+*.lof
+*.lot
+*.fls
+*.fdb_latexmk
+*.synctex.gz
+*.synctex(busy)
+*.xdv
+*.dvi
+*.nav
+*.snm
+*.vrb
+*.bak
+*.tmp
+*.run.xml
+*.bcf
+
+# Local build output; figure PDFs and supplied snapshots remain tracked.
+/main.pdf
+/supplementary.pdf
+/output.pdf
+/output-subdoc/
+/build/
+
+# Editor and operating-system files
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*~

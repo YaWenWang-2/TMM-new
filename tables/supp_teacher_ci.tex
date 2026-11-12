@@ -1,0 +1,22 @@
+\begin{table}[t]
+\caption{Fixed-teacher interventions: $\Delta$PSNR (variant minus recurrent), with paired-image 95\% bootstrap intervals. Standard A/B are independent same-recipe teachers; N/O/S denote nonrecurrent/one-shot/shared. Every row contains 100 Urban100 images.}
+\label{tab:supp_condition_ci}
+\centering\footnotesize
+\setlength{\tabcolsep}{3.0pt}
+\begin{tabular}{cccrr}
+\toprule
+Teacher & $\sigma$ & Path & $\Delta$PSNR & 95\% interval\\
+\midrule
+Standard A & 1.2 & N & $-5.136$ & $[-5.634,-4.664]$\\
+Standard A & 2.4 & N & $-3.354$ & $[-3.672,-3.053]$\\
+Standard A & 3.6 & N & $-3.651$ & $[-4.045,-3.281]$\\
+Standard B & 1.2 & N & $-5.255$ & $[-5.724,-4.808]$\\
+Standard B & 2.4 & N & $-4.113$ & $[-4.468,-3.772]$\\
+Standard B & 3.6 & N & $-4.537$ & $[-4.979,-4.119]$\\
+\midrule
+Standard A & 4.6 & N & $+0.543$ & $[+0.486,+0.599]$\\
+Standard A & 4.6 & O & $+0.394$ & $[+0.342,+0.448]$\\
+Standard A & 4.6 & S & $+0.479$ & $[+0.413,+0.552]$\\
+\bottomrule
+\end{tabular}
+\end{table}

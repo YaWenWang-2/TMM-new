@@ -1,0 +1,333 @@
+% Adapted from the distributed IEEEtran bare_jrnl.tex, V1.4b, Michael Shell.
+% TMM figure replacement, independent copy dated 2026-10-20.
+\documentclass[10pt,journal,letterpaper]{IEEEtran}
+\input{preamble}
+\input{layout_spacing}
+\title{DEDBSR: Deep Ensemble Distillation for Blind Image Super-Resolution}
+\input{authors}
+\markboth{DEDBSR: Manuscript for IEEE Transactions on Multimedia}{DEDBSR}
+\begin{document}
+\maketitle
+
+\begin{abstract}
+Blind image super-resolution (BSR) reconstructs a high-resolution image from a low-resolution observation with unknown blur and noise. Recent distillation-based BSR methods transfer degradation representations to LR-only models, while how this guidance should evolve across restoration depth remains insufficiently explored. Our Fourier analysis of reconstructions at different execution depths shows depth-dependent restoration errors, motivating guidance that accounts for deeper computation and interactions between stages. We propose DEDBSR, a deep ensemble distillation framework that propagates channel and spatial conditions through recurrent restoration groups, forms a degradation-guided ensemble of their residual corrections, and transfers this depth-aware restoration path to an LR-only branch. The LR-only branch inherits the privileged restoration generator and adapts through condition distillation and GT-guided supervision, which combines ground-truth reconstruction with output imitation selected by relative reconstruction error. Experiments on standard blind-SR and anisotropic/noisy benchmarks demonstrate competitive performance under diverse degradations.
+
+\end{abstract}
+\begin{IEEEkeywords}
+Blind image super-resolution, knowledge distillation, degradation conditioning, residual ensemble.
+\end{IEEEkeywords}
+
+\begin{figure*}[t]
+\centering
+\includegraphics[width=\textwidth]{figures/motivation/motivation_visual_v39.pdf}
+\caption{\textbf{Depth selection, stage composition, and GT-guided distillation.} (a) Ten blocks give the highest reported mean; retest limitations are in the supplement. (b,c) The same boxed scene region under different blur conditions. (b) Using the combination predicted for another blur condition increases error while keeping the input and stage corrections fixed. MAE is measured over the full patch on the 0--255 RGB scale. (c) Degradation-informed guidance contains false ripples and has higher whole-patch GT error than the blurrier LR-only output: skip output imitation, retain GT reconstruction. Selection uses whole-patch errors, not crop errors or pixelwise masks. This selected example does not establish a training gain.}
+\label{fig:motivation}
+\end{figure*}
+
+\section{Introduction}
+\label{sec:intro}
+
+Blind image super-resolution (BSR) reconstructs a high-resolution (HR) image from a low-resolution (LR) observation when the blur, downsampling, and noise that produced the observation are unknown. The degradation removes high-frequency structures and makes the desired inverse mapping input-dependent: a model must infer which details are supported by the observation before it restores them. Existing BSR systems therefore couple reconstruction with degradation estimation or representation learning, but the guidance still has to remain useful as the reconstruction proceeds through a deep generator.
+
+Existing BSR methods estimate explicit degradation parameters or learn implicit representations to condition reconstruction. Iterative kernel correction and alternating estimation--restoration exemplify the former, while contrastive degradation learning exemplifies the latter~\cite{gu2019ikc,luo2020dan,wang2021dasr}. More recently, knowledge distillation has enabled training-only information to support LR-only inference. KDSR and LightBSR, for example, transfer degradation-aware representations learned with LR--HR pairs~\cite{xia2023kdsr,yuan2025lightbsr}. Building on this setting, we study how transferred conditions are propagated across restoration stages, how stage corrections are combined, and when output guidance should be imitated.
+
+These considerations link restoration depth, stage interaction, and guidance reliability. First, useful computation across depth should be preserved during transfer. Our Fourier analysis shows that executing more blocks of the same trained network can reduce mean frequency-domain reconstruction errors (Sec.~\ref{sec:depth}). The separate architectural sweep in Fig.~\ref{fig:motivation}(a) gives the highest reported mean at ten blocks per group, providing our reference depth. Second, depth-dependent restoration motivates examining how degradation conditions evolve between groups and how their corrections are combined. Figure~\ref{fig:motivation}(b) isolates the composition aspect: under mild blur, using a stage combination predicted for another blur condition increases error while keeping the input and all group corrections fixed. Third, privileged output guidance can be less accurate than the LR-only prediction. For the same scene under stronger blur, Fig.~\ref{fig:motivation}(c) shows false ripples in the privileged output, whereas the blurrier LR-only output has lower whole-patch error against ground truth (GT). This motivates GT-based output selection while retaining GT reconstruction for every patch.
+
+We propose DEDBSR, a deep ensemble distillation framework that transfers a degradation-informed restoration path to LR-only inference. A kernel-informed privileged branch learns the restoration computation; the LR-only branch inherits and adapts it through condition distillation and GT-guided supervision. The framework integrates recurrent condition propagation, stage-wise residual aggregation, and selective output imitation. Our main contributions are summarized as follows:
+
+\begin{itemize}
+\item We propose a deep ensemble distillation framework for blind SR that transfers a trained restoration path to an LR-only model. GT-guided supervision combines reconstruction with output imitation selected according to relative reconstruction error.
+\item We develop two modules for cross-stage restoration: degradation recurrent groups propagate channel and spatial conditions, while a degradation-guided residual ensemble combines completed group corrections. Together, they connect condition evolution with stage composition.
+\item Experiments demonstrate competitive performance on standard BSR benchmarks under isotropic and anisotropic/noisy degradations. Further analyses examine the roles of restoration depth, stage interaction, and GT-guided supervision.
+\end{itemize}
+
+\section{Related Work}
+\label{sec:related_work}
+
+\noindent\textbf{Degradation modeling for blind SR.}
+Blind SR handles unknown degradations through internal learning, explicit estimation, or implicit representations. ZSSR adapts to a test image, while KernelGAN estimates its kernel from internal statistics~\cite{shocher2018zssr,bellkligler2019kernelgan}; learned kernel priors and probabilistic noise modeling further constrain estimation~\cite{liang2021fkp,yue2022bsrdm}. Unlike SRMD and USRNet, which use supplied degradation information~\cite{zhang2018srmd,zhang2020usrnet}, IKC, DAN, and DCLS couple estimation with reconstruction~\cite{gu2019ikc,luo2020dan,luo2022dcls}. Implicit methods instead learn conditions through contrastive or meta-learning objectives~\cite{wang2021dasr,xia2023mrda}, incorporate them into attention or predict joint content--degradation priors~\cite{liu2024dsat,liu2024cdformer}, and reduce content interference~\cite{chen2025drat,yuan2025cdcl}. Separately, BSRGAN and Real-ESRGAN broaden synthetic training degradations~\cite{zhang2021bsrgan,wang2021realesrgan}. These directions address different parts of the blind inverse problem: estimating the imaging process, learning a useful restoration condition, and covering the degradations encountered at test time. An informative condition must also be integrated into the reconstruction network; its representation alone does not determine how successive stages should use it.
+
+\noindent\textbf{Deep and conditional restoration.}
+Recursion, dense feature reuse, and residual channel attention support deep SR~\cite{tai2017drrn,zhang2018rdn,zhang2018rcan}; back-projection and second-order attention provide feedback and feature-correlation modeling~\cite{haris2018dbpn,dai2019san}. SwinIR, HAT, and SRFormer expand spatial interactions through shifted, overlapping, or permuted attention~\cite{liang2021swinir,chen2023hat,zhou2023srformer}. Token dictionaries and state-space models further extend context aggregation~\cite{zhang2024atd,guo2024mambair,guo2025mambairv2}, while high-pass filtering and frequency-aware attention target detail recovery~\cite{magid2021dynamic,dai2024freqformer}. Conditioning is also established: SFT applies semantic spatial modulation~\cite{wang2018sft}, and conditional or dynamic convolutions adapt operators to input signals~\cite{yang2019condconv,chen2020dynamicconv,xu2020udvd}. These mechanisms distinguish feature interaction and conditional computation from merely increasing depth. RDN and RCAN establish hierarchical reuse and deep residual processing, whereas attention and state-space approaches primarily expand the spatial information available to a feature. SFT uses semantic priors, while UDVD assumes supplied degradation information. This distinction separates the source of guidance from the location where it modifies computation, and separates feature transformation from aggregation of completed stage corrections.
+
+\noindent\textbf{Restoration distillation.}
+SR distillation uses HR-privileged information~\cite{lee2020pisr}, feature affinities~\cite{he2020fakd}, or synthesized inputs when training data are unavailable~\cite{zhang2021dfkd}. MTKD combines multiple predictions with wavelet supervision~\cite{jiang2024mtkd}; MiPKD mixes feature- and block-level priors~\cite{li2025mipkd}; DCKD adjusts contrastive guidance to the student's learning state~\cite{zhou2025dckd}. For blind SR, KDSR and LightBSR transfer degradation representations to LR-only models~\cite{xia2023kdsr,yuan2025lightbsr}. Existing work therefore already addresses intermediate knowledge and adaptive supervision. In particular, feature-affinity and prior-mixing approaches show that distillation need not be restricted to final predictions; multi-teacher and adaptive contrastive approaches also modify the guidance supplied during learning. KDSR and LightBSR provide the closest blind-SR setting because training-only information must become useful to a branch that observes LR alone. The remaining design questions concern how transferred guidance enters successive restoration stages and how imitation targets relate to reconstruction accuracy.
+
+\noindent\textbf{Generative restoration priors.}
+StableSR, DiffBIR, and SeeSR adapt pretrained diffusion priors through restoration or semantic conditioning~\cite{wang2024stablesr,lin2024diffbir,wu2024seesr}. ResShift redesigns the sampling process~\cite{yue2023resshift}, while SinSR, OSEDiff, and TSD-SR pursue single-step restoration through distinct distillation objectives~\cite{wang2024sinsr,wu2024osediff,dong2025tsdsr}. These approaches emphasize generative detail and sampling efficiency rather than condition propagation within a feed-forward restoration path. Their restoration objectives and real-world degradation protocols also differ from controlled Gaussian comparisons, so perceptual synthesis and distortion-oriented reconstruction require separate evidence.
+
+
+\section{Proposed Method}
+\label{sec:method}
+
+\subsection{Overview and Notation}
+\label{sec:overview}
+
+Figure~\ref{fig:architecture} separates the restoration path from the training-only supervision paths. Let $\mathbf y\in\mathbb R^{3\times H\times W}$ be an LR image and $\mathbf x\in\mathbb R^{3\times rH\times rW}$ its HR target, related by $\mathbf y=(\mathbf x*\mathbf k)\!\downarrow_r+\mathbf n$. Here $\mathbf k$ is a blur kernel, $r$ is the scale factor, and $\mathbf n$ is additive noise. The privileged branch, denoted by $P$, receives $\mathbf y$ and a spatially broadcast PCA encoding $\mathbf d(\mathbf k)$ of the kernel. The LR-only branch, denoted by $L$, receives only $\mathbf y$.
+
+Each branch has a condition encoder, a convolutional stem, a stack of degradation recurrent groups (DRGs), degradation-guided dynamic weighting (DG), and a reconstruction head. Both generators have the same architecture, but their parameters are separate after initialization. We use $a\in\{P,L\}$ to index branches and omit this superscript on learnable operators when the branch is clear. The condition states are $\mathbf c_i^a\in\mathbb R^{d_c}$ and $\mathbf s_i^a\in\mathbb R^{d_s\times H\times W}$; the restoration features are $\mathbf f_i^a\in\mathbb R^{C\times H\times W}$. There are $N$ groups and $M$ degradation-modulated blocks (DMBs) per group. We write $[\cdot,\cdot]$ for channel concatenation, $\odot$ for elementwise multiplication with broadcasting, $\phi$ for GELU, and $\sigma$ for the sigmoid function. The framework's encoder lanes, panels (a)--(d), and three-input GT supervision path correspond to the components below.
+
+\begin{figure*}[!t]
+\centering
+\includegraphics[width=\textwidth]{figures/distillation_framework_three_inputs_v17_corrected.pdf}
+\caption{\textbf{DEDBSR restoration and distillation framework.} The privileged branch receives an LR image and a kernel-derived condition map, while the LR-only branch receives the LR image alone. The encoder heads supply initial channel and spatial conditions. RPU-c and RPU-s, expanded in (a,b), update the conditions before each degradation recurrent group. DMB in (d) applies channel and spatial modulation; DG in (c) weights completed group corrections. Reconstruct includes the output projection, global stem skip, and upsampling head. Dashed condition paths align the initial conditions. The three-input GT supervision block uses both reconstructions and GT to combine GT reconstruction with selective output imitation. The LR-only generator inherits the privileged generator at initialization; only the LR-only branch is used at inference.}
+\label{fig:architecture}
+\end{figure*}
+
+\subsection{Condition Encoding}
+\label{sec:condition_encoding}
+
+The condition encoders extract guidance separately from the features used for reconstruction. In the two encoder lanes of Fig.~\ref{fig:architecture},
+\begin{equation}
+\mathbf q^P=E_P([\mathbf y,\mathbf d(\mathbf k)]),\qquad
+\mathbf q^L=E_L(\mathbf y).
+\label{eq:encoder}
+\end{equation}
+The privileged encoder recalibrates convolutional features through squeeze-and-excitation. The LR-only encoder has a separate convolutional path. The two encoders produce condition features with compatible shapes and use separate parameters.
+
+The GAP--Linear and PixelShuffle--Conv heads convert the encoder features in Eq.~\eqref{eq:encoder} into the initial conditions:
+\begin{equation}
+\begin{aligned}
+\mathbf c_0^a&=\phi\!\left(A_c^a(\operatorname{GAP}(\mathbf q^a))\right),\\
+\mathbf s_0^a&=\phi\!\left(K_s^a(\mathcal A(\operatorname{PS}(\mathbf q^a)))\right).
+\end{aligned}
+\label{eq:initcond}
+\end{equation}
+Here $A_c^a$ is a learned linear projection, $K_s^a$ is a convolution, $\operatorname{PS}$ denotes pixel shuffle, and $\mathcal A$ aligns the condition map to the LR grid when boundary padding is required. The initial channel condition supports channel modulation and DG weight prediction; the spatial condition supports spatial modulation. A separate stem produces $\mathbf f_0^a=F_a(\mathbf y-\boldsymbol\mu)$, where $\boldsymbol\mu$ is the RGB mean removed by the generator. The pairs $(t_c,t_s)$ and $(s_c,s_s)$ in the figure denote $(\mathbf c_0^P,\mathbf s_0^P)$ and $(\mathbf c_0^L,\mathbf s_0^L)$, respectively. They are connected by the channel and spatial distillation paths.
+
+\subsection{Degradation Recurrent Groups}
+\label{sec:drg}
+
+The DRG stack propagates condition states together with the restoration features. Starting from Eq.~\eqref{eq:initcond}, the channel and spatial recurrent processing units, RPU-c and RPU-s in Fig.~\ref{fig:architecture}(a,b), update the states before group $i$:
+\begin{equation}
+\begin{aligned}
+\mathbf c_i^a&=\mathbf c_{i-1}^a+U_{c,i}(\mathbf c_{i-1}^a),\\
+\mathbf s_i^a&=\mathbf s_{i-1}^a+U_{s,i}(\mathbf s_{i-1}^a).
+\end{aligned}
+\label{eq:update}
+\end{equation}
+The implementation uses a residual channel MLP and a residual spatial convolutional mapping:
+\begin{equation}
+\begin{aligned}
+U_{c,i}(\mathbf c)&=\phi\!\left(A_{c,i}^{(2)}(\phi(A_{c,i}^{(1)}(\mathbf c)))\right),\\
+U_{s,i}(\mathbf s)&=\phi\!\left(K_{s,i}^{(2)}(\phi(K_{s,i}^{(1)}(\mathbf s)))\right).
+\end{aligned}
+\label{eq:rpu_maps}
+\end{equation}
+The affine maps $A_{c,i}^{(\cdot)}$ and convolutions $K_{s,i}^{(\cdot)}$ preserve the output dimensions of the corresponding states. Equations~\eqref{eq:update}--\eqref{eq:rpu_maps} propagate the states across depth through operators with group-specific parameters. The updated states are reused by all DMBs within the current group.
+
+\noindent\textbf{Degradation-modulated block.}
+Panel (d) expands how a DMB uses the two conditions. Split its input $\mathbf z$ along channels into a spatial slice $\mathbf z_s$ and a channel slice $\mathbf z_c$. Their modulation weights are
+\begin{equation}
+\begin{aligned}
+\mathbf a_s&=\sigma\!\left(K_{s,2}(\phi(K_{s,1}([\mathbf s_i^a,\mathbf z_s])))\right),\\
+\mathbf a_c&=\sigma\!\left(A_{c,2}(\phi(A_{c,1}([\operatorname{GAP}(\mathbf z_c),\mathbf c_i^a])))\right).
+\end{aligned}
+\label{eq:dmb_gates}
+\end{equation}
+The spatial gate $\mathbf a_s$ has the shape of $\mathbf z_s$, while the channel gate $\mathbf a_c$ is broadcast over spatial positions. A partial convolution acts on the gated spatial slice, and the channel slice is rescaled directly. The block combines them through
+\begin{equation}
+\begin{aligned}
+\widetilde{\mathbf z}&=[\operatorname{PConv}(\mathbf z_s\odot\mathbf a_s),\;
+                         \mathbf z_c\odot\mathbf a_c],\\
+\mathbf v&=\operatorname{LN}\!\left(\operatorname{DWConv}(\phi(\widetilde{\mathbf z}))\right),\\
+\operatorname{DMB}(\mathbf z;\mathbf c_i^a,\mathbf s_i^a)
+ &=\mathbf z+\boldsymbol\gamma\odot\operatorname{FFN}(\mathbf v).
+\end{aligned}
+\label{eq:dmb}
+\end{equation}
+In Eq.~\eqref{eq:dmb}, $\operatorname{DWConv}$ is a depthwise convolution, $\operatorname{LN}$ normalizes channels at each spatial location, $\operatorname{FFN}$ is an expansion--GELU--projection mapping, and $\boldsymbol\gamma$ is a learnable channelwise residual scale. The gates in Eq.~\eqref{eq:dmb_gates} correspond to the two sigmoid paths in panel (d); the remaining operators follow the concatenation in the same panel.
+
+\noindent\textbf{Group correction.}
+The central DRG boxes apply the DMBs in sequence, followed by a ConvNeXt transformation and an output convolution. Writing $\mathbf z_{i,0}^a=\mathbf f_{i-1}^a$, the group computation for $j=1,\ldots,M$ is
+\begin{equation}
+\begin{aligned}
+\mathbf z_{i,j}^a&=\operatorname{DMB}_{i,j}(\mathbf z_{i,j-1}^a;\mathbf c_i^a,\mathbf s_i^a),\\
+\boldsymbol\Delta_i^a&=K_i\!\left(\operatorname{CN}_i(\mathbf z_{i,M}^a)\right),\\
+\mathbf f_i^a&=\mathbf f_{i-1}^a+\boldsymbol\Delta_i^a.
+\end{aligned}
+\label{eq:group}
+\end{equation}
+The ConvNeXt transformation~\cite{liu2022convnext} uses depthwise mixing, channel normalization, a pointwise feed-forward mapping, and its own residual connection. Equation~\eqref{eq:group} adds the group correction to that group's input. The completed increment $\boldsymbol\Delta_i^a=\mathbf f_i^a-\mathbf f_{i-1}^a$ is retained for aggregation.
+
+\subsection{Degradation-Guided Dynamic Weighting}
+\label{sec:dg}
+
+DG in Fig.~\ref{fig:architecture}(c) aggregates the completed group corrections in Eq.~\eqref{eq:group}. It predicts normalized weights from the initial channel condition:
+\begin{equation}
+\begin{aligned}
+\mathbf w^a&=\operatorname{softmax}(R(\mathbf c_0^a)),\\
+\mathbf r^a&=\sum_{i=1}^{N}w_i^a\boldsymbol\Delta_i^a,
+\qquad w_i^a\geq0,\quad \sum_{i=1}^{N}w_i^a=1.
+\end{aligned}
+\label{eq:route}
+\end{equation}
+The mapping $R$ is a learned MLP. Its final projection is initialized to zero, which starts the weights in Eq.~\eqref{eq:route} uniformly. The aggregate supplements the terminal feature through a gated pointwise projection:
+\begin{equation}
+\overline{\mathbf f}^{a}=\mathbf f_N^a+\alpha\,K_{\mathrm{fuse}}(\mathbf r^a),
+\qquad \alpha=\sigma(\beta).
+\label{eq:fusion}
+\end{equation}
+Here $\beta$ is a learnable scalar and $K_{\mathrm{fuse}}$ is initialized to zero. This is the Weight MLP--Softmax--weighted sum--fusion path in panel (c). It retains the full sequential trunk and changes how its completed corrections contribute to the final feature.
+
+The Reconstruct block applies an output convolution, the global stem skip, and the upsampling head:
+\begin{equation}
+\widehat{\mathbf x}^{a}
+=U_a\!\left(K_{\mathrm{out}}(\overline{\mathbf f}^{a})+\mathbf f_0^a\right)+\boldsymbol\mu.
+\label{eq:output}
+\end{equation}
+The upsampling and RGB projection are included in $U_a$. Equation~\eqref{eq:output} is applied after DG fusion in Eq.~\eqref{eq:fusion}; the global skip is separate from the group residuals.
+
+\subsection{Distillation with GT-Guided Reconstruction}
+\label{sec:transfer}
+
+Training transfers the restoration computation while preserving a GT reference for the LR-only output. The privileged branch is first trained with reconstruction and a momentum-contrastive encoder objective~\cite{he2020moco}. Its parameters are then frozen, and the LR-only generator is initialized from the corresponding privileged generator. A condition-alignment stage precedes reconstruction adaptation. We use $\operatorname{sg}(\cdot)$ for stop-gradient and $\mathcal B_d$ for the minibatch on device $d$. For equally shaped tensors, define $\ell_1(\mathbf u,\mathbf v)=\|\mathbf u-\mathbf v\|_1/|\mathbf u|$ and $\ell_2(\mathbf u,\mathbf v)=\|\mathbf u-\mathbf v\|_F^2/|\mathbf u|$, where $|\mathbf u|$ is the number of elements. Predictions and GT are converted to the same image-intensity scale before evaluating reconstruction errors; the conversion and loss coefficients are specified in the supplement.
+
+\noindent\textbf{Condition distillation.}
+The dashed channel and spatial paths align the initial conditions, rather than the updated states inside every group. With $\mathbf p_b^a=\operatorname{softmax}(\mathbf c_{0,b}^a/\tau)$, the losses are
+\begin{equation}
+\begin{aligned}
+\mathcal L_{\mathrm{SP}}&=\frac{1}{|\mathcal B_d|}\sum_{b\in\mathcal B_d}
+\ell_2(\mathbf s_{0,b}^L,\operatorname{sg}(\mathbf s_{0,b}^P)),\\
+\mathcal L_{\mathrm{CH}}&=\frac{1}{|\mathcal B_d|}\sum_{b\in\mathcal B_d}
+\Bigl[D_{\mathrm{KL}}(\operatorname{sg}(\mathbf p_b^P)\Vert\mathbf p_b^L)\\
+&\hspace{3.3em}+\lambda_c\ell_1(\mathbf c_{0,b}^L,\operatorname{sg}(\mathbf c_{0,b}^P))\Bigr].
+\end{aligned}
+\label{eq:conditionloss}
+\end{equation}
+The temperature $\tau$ controls the channel distributions, and $\lambda_c$ weights direct channel alignment. Equation~\eqref{eq:conditionloss} averages the channelwise KL divergence over the minibatch and normalizes direct alignment by the number of condition elements. The alignment stage minimizes $\lambda_{\mathrm{SP}}\mathcal L_{\mathrm{SP}}+\lambda_{\mathrm{CH}}\mathcal L_{\mathrm{CH}}$.
+
+\noindent\textbf{Three-input GT guidance.}
+The supervision block in Fig.~\ref{fig:architecture} receives the privileged output, the LR-only output, and GT. It uses GT both as a reconstruction target and to assess whether output imitation is appropriate. For each patch,
+\begin{equation}
+\begin{aligned}
+e_b^a&=\ell_1(\widehat{\mathbf x}_b^a,\mathbf x_b),\\
+m_b&=\mathbf 1\!\left[\operatorname{sg}(e_b^P)<\operatorname{sg}(e_b^L)\right].
+\end{aligned}
+\label{eq:gate}
+\end{equation}
+The gate in Eq.~\eqref{eq:gate} is a detached decision for the whole training patch; it is not a pixelwise mask. GT reconstruction is applied to every patch, whereas output imitation is averaged only over selected patches:
+\begin{equation}
+\begin{aligned}
+\mathcal L_{\mathrm{rec}}&=\frac{1}{|\mathcal B_d|}\sum_{b\in\mathcal B_d}e_b^L,\\
+\mathcal L_{\mathrm{out}}&=
+\frac{\sum_{b\in\mathcal B_d}m_b\ell_1(\widehat{\mathbf x}_b^L,\operatorname{sg}(\widehat{\mathbf x}_b^P))}
+{\max(1,\sum_{b\in\mathcal B_d}m_b)}.
+\end{aligned}
+\label{eq:output_losses}
+\end{equation}
+The normalization in Eq.~\eqref{eq:output_losses} makes $\mathcal L_{\mathrm{out}}$ zero when no local patch is selected. Distributed training averages the device-local objectives; it does not pool accepted-patch counts across devices. The three-input supervision block combines these terms as
+\begin{equation}
+\mathcal L_{\mathrm{GT}}
+=\lambda_{\mathrm{rec}}\mathcal L_{\mathrm{rec}}
++\lambda_{\mathrm{out}}(t)\mathcal L_{\mathrm{out}}.
+\label{eq:gt_guided}
+\end{equation}
+Thus, $\mathcal L_{\mathrm{GT}}$ in the figure includes reconstruction from GT and GT-selected output imitation. The reconstruction-adaptation stage combines Eq.~\eqref{eq:gt_guided} with the condition losses:
+\begin{equation}
+\mathcal L
+=\mathcal L_{\mathrm{GT}}
++\lambda_{\mathrm{SP}}\mathcal L_{\mathrm{SP}}
++\lambda_{\mathrm{CH}}\mathcal L_{\mathrm{CH}}.
+\label{eq:training_objective}
+\end{equation}
+The nonnegative loss weights balance these terms, and $\lambda_{\mathrm{out}}(t)$ follows the output-distillation schedule. At inference, Eq.~\eqref{eq:training_objective} is discarded together with the privileged branch and the kernel cue. The LR-only encoder and inherited, adapted generator produce the reconstruction from $\mathbf y$ alone.
+
+
+\section{Experimental Evaluation}
+\label{sec:experiments}
+We evaluate reconstruction accuracy against blind-SR baselines, followed by analyses of recurrent conditioning, depth-residual composition, and distillation-driven LR-only adaptation.
+
+\subsection{Evaluation Protocol}
+We evaluate $\times4$ BSR on Set5~\cite{bevilacqua2012set5}, Set14~\cite{zeyde2012set14}, B100~\cite{martin2001bsd}, and Urban100~\cite{huang2015urban100}. Training uses 3,450 DF2K images from DIV2K~\cite{agustsson2017div2k} and Flickr2K~\cite{lim2017edsr}, with random flips/rotations and $64\times64$ LR crops. The primary degradation is $21\times21$ isotropic Gaussian blur followed by noise-free bicubic downsampling. The privileged branch samples blur widths uniformly within $[0.2,4]$; the LR-only branch uses a mixture distribution over the same interval, with increased density around the primary benchmark widths. The complete sampling procedure is specified in the supplement.
+
+LR-only training uses four GPUs with global batch 64 and Adam optimization. We apply condition warm-up followed by joint reconstruction training, and evaluate exponential moving average (EMA) weights. Table~\ref{tab:main} retains the original benchmark model; the additional comparison and historical transfer controls use the designated LR-only checkpoint after the recorded training stages. Schedules and control-specific budgets are recorded in the supplement.
+
+We compute peak signal-to-noise ratio (PSNR) and structural similarity (SSIM) on quantized luminance after removing four boundary pixels. Dataset--width scores average image-level metrics; aggregate control means weight the twelve conditions equally.
+
+\subsection{Blind-SR Comparisons}
+Table~\ref{tab:main} compares DEDBSR with representative blind-SR methods, including IDMBSR~\cite{zhang2022idmbsr} and CDFormer-S~\cite{liu2024cdformer}. Under the reported protocols, the learned methods infer degradation from LR. DEDBSR is competitive across the listed conditions, with its Urban100 scores of 26.65, 26.33, and 25.37~dB exceeding the strongest reference entries by 0.15, 0.09, and 0.03~dB. The complete table reports the remaining method comparisons.
+
+\input{tables/main_aaai_restored_20261013}
+\input{tables/main_cdcl_additional_20261013}
+
+Table~\ref{tab:additional_cdcl} extends the comparison to CdCL-S/L with the designated LR-only model~\cite{yuan2025cdcl}. On Urban100, DEDBSR exceeds CdCL-L by 0.077 and 0.046~dB at the two smaller blur widths, while CdCL-L is 0.029~dB higher at the largest width. Reference scores follow published protocols; the table and supplement identify cost sources and profiling conventions.
+
+Figure~\ref{fig:qualitative} compares the img092 building texture and the img093 crosswalk texture from Urban100. The two panels expose differences in recovering repeated structures, fine edges, and high-frequency details across methods.
+
+\begin{figure*}[t]
+\centering
+\includegraphics[width=.96\textwidth]{figures/img092_figure_font_matched.png}\\[4pt]
+\includegraphics[width=.96\textwidth]{figures/img093_crops_grid_048style.png}
+\caption{Qualitative comparisons on Urban100. The upper row shows the img092 building texture and the lower row shows the img093 crosswalk texture. Red boxes in the lower row indicate enlarged regions; each row includes the reconstructed crops and the HR reference.}
+\label{fig:qualitative}
+\end{figure*}
+
+\subsection{Anisotropic Blur and Noise}
+The anisotropic/noisy experiment extends the evaluation beyond noise-free isotropic degradation. Table~\ref{tab:anisotropic} compares DEDBSR with eight reference methods on B100 under the nine kernels and two noise levels of LightBSR Setting~2~\cite{yuan2025lightbsr}. Using the same architecture trained separately for this setting, DEDBSR achieves the highest or tied-highest PSNR in seventeen of the eighteen conditions. Relative to LightBSR, the mean improvements are 0.018 and 0.016~dB at noise levels 5 and 10; one condition is lower by 0.01~dB. Baseline scores follow the published comparison, and the full training degradation protocol is given in the supplement. Together with the isotropic results, this evaluation supports the architecture's applicability across distinct degradation settings. We next examine the condition path, residual composition, and LR-only adaptation directly.
+
+\input{tables/anisotropic_main_20261013}
+
+\section{Ablation Studies and Analysis}
+\subsection{Recurrent Condition Guidance}
+We first examine how trained privileged branches depend on their condition paths, then test whether that dependence persists after recovery training. \emph{Nonrecurrent} retains group-specific update modules but computes each group's state from the initial conditions, preserving parameter count. \emph{One-shot} bypasses updates, and \emph{shared update} reuses the first group's update modules while retaining recurrence. The trunk, residual router, fusion, and output head remain fixed during the initial interventions; recovery training subsequently optimizes each variant's active modules.
+
+Fixed-model interventions on two independently trained standard recurrent privileged branches reduce PSNR when recurrence is removed, bypassed, or shared. Removing recurrence loses 3.354--5.136~dB for the first branch and 4.113--5.255~dB for the second at the primary widths. Additional in-support widths show the same mean ordering, including a branch trained with an alternative update budget. The supplement reports the repeated-checkpoint and expanded-width tables, their paired intervals, and out-of-support exceptions. These interventions diagnose dependence on a trained condition path; matched recovery below tests whether its advantage persists after adaptation.
+
+\noindent\textbf{Recovery after changing the condition path.}
+Full retains the highest mean PSNR after matched recovery (Table~\ref{tab:shared_recovery}). All variants start from the same privileged checkpoint and receive equal recovery budgets. Full exceeds nonrecurrent, one-shot, and shared-update paths by 0.237, 0.250, and 0.026~dB, respectively. Against the equal-parameter nonrecurrent control, its paired image-bootstrap 95\% interval is $[0.182,0.302]$~dB; the Urban100 improvement is 0.524~dB. Recovery reduces the immediate intervention penalty but preserves a mean advantage for recurrent propagation.
+
+\input{tables/shared_update_recovery_20261024}
+
+\subsection{Depth and Residual Composition}
+\label{sec:depth}
+
+\noindent\textbf{Depth-dependent restoration.}
+The reported architectural sweep in Fig.~\ref{fig:motivation}(a) reaches its highest twelve-condition mean at ten blocks per group, which we retain as the benchmark reference configuration. The separate depth retest uses different training conditions; the supplement records the provenance and protocol limitations of these comparisons.
+
+Our Fourier analysis examines the reconstruction obtained by executing different numbers of blocks within every group of a trained network. On 100 Urban100 images at three blur widths, the full execution prefix has lower mean normalized complex HR error than the shortest prefix in all nine blur--frequency conditions. The final output increment also aligns with the missing HR residual. These observations show that additional computation within the probed networks can contribute useful reconstruction corrections, motivating the transfer of a restoration path that retains this computation. The trained condition updates, group tails, and reconstruction head remain active throughout the probe; the complete protocol is given in the supplement.
+
+
+\noindent\textbf{Degradation-guided stage composition.}
+The composition probe retains all completed group corrections and varies how they are combined. Extending Fig.~\ref{fig:motivation}(b), combination prototypes are estimated on one image split and evaluated on a held-out split across seven blur widths. Matched combinations exceed alternatives by 0.530~dB on Urban100 and 0.410~dB on B100 on average, showing that reconstruction depends on stage composition. The matched uniform-weight retraining control reaches similar mean PSNR (differences below 0.006~dB; supplement), so these observations establish composition sensitivity without establishing an independent accuracy gain from input-dependent weighting.
+
+\begin{figure}[!t]
+\centering
+\includegraphics[width=\columnwidth]{figures/fig_transfer_interface_main.png}
+\caption{\textbf{Distillation and LR-only adaptation diagnostics.} (a) PSNR of the privileged and LR-only branches across blur widths; (b) cosine similarity of their residual routes; (c) PSNR loss after forcing a route from another blur width. The probe quantifies LR-only adaptation and route consistency; complete gate diagnostics are provided in the supplement.}
+\label{fig:transfer}
+\end{figure}
+
+\subsection{Initialization and LR-only Adaptation}
+\input{tables/inheritance_controls_main_20261013}
+
+
+\noindent\textbf{Initialization and adaptation.}
+The initialization and adaptation controls isolate the effect of transferring a trained restoration structure. Under GT-only reconstruction, privileged initialization raises mean PSNR from 28.430 to 28.504~dB and the Urban100 mean from 25.940 to 26.129~dB. Freezing the inherited restoration network reduces Full by 0.256~dB overall and 0.523~dB on Urban100. These controls support transferring a trained restoration structure and subsequently adapting it to LR-derived conditions.
+
+
+
+\noindent\textbf{GT-referenced output selection.}
+Figure~\ref{fig:transfer} shows that the LR-only branch can adapt beyond weaker privileged predictions while retaining similar residual routes, with PSNR improvements of up to 1.14~dB in the interior blur interval. In the fixed-patch probe, direct output imitation is disabled on all 138 privileged-worse patches while GT reconstruction remains active, verifying the intended selection rule. In matched three-epoch recovery, Gate-on, Gate-off, and No-output-KD reach 28.5203, 28.5280, and 28.5170~dB, respectively. These finite-budget controls do not establish an independent accuracy gain from the gate; complete protocols and fixed-patch results are provided in the supplement.
+
+\section{Conclusion and Discussion}
+DEDBSR transfers a condition-guided restoration path from a kernel-informed privileged branch to an LR-only branch. Recurrent channel and spatial states guide successive groups, and a degradation-guided ensemble combines their corrections. GT provides reconstruction targets and selects output imitation. Across the reported protocols, DEDBSR achieves leading PSNR in most evaluated conditions. Initialization and adaptation controls support transferring trained restoration computation, while matched recovery supports recurrent propagation within the measured training range.
+
+The framework couples inherited restoration computation with GT-referenced target selection. The LR-only branch inherits and adapts the restoration path, with GT reconstruction active for every adaptation sample and output imitation selected by relative error. Extending this approach to broader real-world degradations is a direction for future work.
+
+\begingroup
+\emergencystretch=2em
+\tolerance=2000
+\bibliographystyle{IEEEtran}
+\bibliography{references}
+\endgroup
+\end{document}
+
+
+
+
+
+
+
+
+

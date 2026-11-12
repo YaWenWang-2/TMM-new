@@ -1,0 +1,17 @@
+\begin{table}[t]
+\caption{Historical stage lengths for the recorded training stages; all use global batch 64. Stage counts are not equalized reconstruction budgets.}
+\label{tab:supp_schedule}
+\centering\scriptsize
+\setlength{\tabcolsep}{3pt}
+\begin{tabular}{lrl}
+\toprule
+Configuration & \shortstack{Condition\\warm-up} & \shortstack[l]{Following objective\\and epochs}\\
+\midrule
+Full / F1 / F5 & 100 & Reconstruction / 500\\
+GT-only, scratch/initialized & 0 & GT reconstruction / 600\\
+F2: no condition KD & 0 & GT + output KD / 600\\
+F3: condition only & 100 & Condition alignment / 500\\
+F4: output KD only, no GT & 0 & Output KD only / 600\\
+\bottomrule
+\end{tabular}
+\end{table}

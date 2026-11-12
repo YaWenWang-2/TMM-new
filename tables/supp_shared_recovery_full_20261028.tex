@@ -1,0 +1,18 @@
+\begin{table*}[t]
+\caption{Teacher condition paths after matched recovery: the same teacher-checkpoint initialization, 30 epochs, and 90,540 updates. Dataset PSNRs average three blur widths; overall means equally weight twelve conditions. Full and Nonrecurrent have equal active parameter counts; the other variants freeze unused update modules. Bold marks the highest metric values. Architecture and optimization details are in the supplement.}
+\label{tab:supp_shared_recovery_full}
+\centering
+\footnotesize
+\setlength{\tabcolsep}{5pt}
+\renewcommand{\arraystretch}{1.05}
+\begin{tabular*}{\textwidth}{@{\extracolsep{\fill}}lrrrrrrr@{}}
+\toprule
+Condition path & Set5 & Set14 & B100 & Urban100 & Mean PSNR & Mean SSIM & Full $-$ row \\
+\midrule
+Full & \best{32.052} & \best{28.454} & \best{27.516} & \best{25.843} & \best{28.466} & \best{.79322} & -- \\
+Nonrecurrent & 31.911 & 28.213 & 27.476 & 25.319 & 28.230 & .79133 & +.237 dB \\
+One-shot & 31.904 & 28.195 & 27.468 & 25.299 & 28.216 & .79103 & +.250 dB \\
+Shared update & 32.040 & 28.426 & 27.510 & 25.785 & 28.440 & .79304 & +.026 dB \\
+\bottomrule
+\end{tabular*}
+\end{table*}
