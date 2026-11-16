@@ -271,20 +271,20 @@ Figure~\ref{fig:qualitative} compares the img092 building texture and the img093
 \end{figure*}
 
 \subsection{Anisotropic Blur and Noise}
-The anisotropic/noisy experiment extends the evaluation beyond noise-free isotropic degradation. Table~\ref{tab:anisotropic} compares DEDBSR with eight reference methods on B100 under the nine kernels and two noise levels of LightBSR Setting~2~\cite{yuan2025lightbsr}. Using the same architecture trained separately for this setting, DEDBSR achieves the highest or tied-highest PSNR in seventeen of the eighteen conditions. Relative to LightBSR, the mean improvements are 0.018 and 0.016~dB at noise levels 5 and 10; one condition is lower by 0.01~dB. Baseline scores follow the published comparison, and the full training degradation protocol is given in the supplement. Together with the isotropic results, this evaluation supports the architecture's applicability across distinct degradation settings. We next examine the condition path, residual composition, and LR-only adaptation directly.
+The anisotropic/noisy experiment extends the evaluation beyond noise-free isotropic degradation. Table~\ref{tab:anisotropic} compares DEDBSR with eight reference methods on B100 under the nine kernels and two noise levels of LightBSR Setting~2~\cite{yuan2025lightbsr}. Using the same architecture trained separately for this setting, DEDBSR achieves the highest or tied-highest PSNR in seventeen of the eighteen conditions, with mean improvements over LightBSR of 0.018 and 0.016~dB at noise levels 5 and 10. Baseline scores follow the published comparison, and the full training degradation protocol is given in the supplement. Together with the isotropic results, this evaluation supports the architecture's applicability across distinct degradation settings. We next examine the condition path, residual composition, and LR-only adaptation directly.
 
 \input{tables/anisotropic_main_20261013}
 
 \section{Ablation Studies and Analysis}
 \subsection{Recurrent Condition Guidance}
-We first examine how trained privileged branches depend on their condition paths, then test whether that dependence persists after recovery training. \emph{Nonrecurrent} retains group-specific update modules but computes each group's state from the initial conditions, preserving parameter count. \emph{One-shot} bypasses updates, and \emph{shared update} reuses the first group's update modules while retaining recurrence. The trunk, residual router, fusion, and output head remain fixed during the initial interventions; recovery training subsequently optimizes each variant's active modules.
+We evaluate three condition-path variants: \emph{nonrecurrent} computes each group's state from the initial conditions using group-specific updates; \emph{one-shot} bypasses updates; and \emph{shared update} reuses the first group's update modules recursively. Nonrecurrent preserves Full's parameter count. Initial interventions leave all other modules fixed; matched recovery then optimizes each variant's active modules.
 
-Fixed-model interventions on two independently trained privileged branches reduce PSNR when recurrent updates are removed, bypassed, or shared. The same mean ordering holds at additional in-support blur widths; the supplement reports complete results and out-of-support exceptions. These probes measure reliance on the trained condition path, rather than the performance of independently trained alternatives. Matched recovery therefore allows each active path to adapt before comparing the resulting reconstruction accuracy.
+Fixed-model interventions reduce PSNR on two independently trained privileged branches at the primary blur widths. Expanded-width results and out-of-support exceptions are in the supplement. These interventions measure reliance on the trained condition path; matched recovery tests whether its advantage persists after adaptation.
 
 \noindent\textbf{Recovery after changing the condition path.}
-Full retains the highest mean PSNR after matched recovery (Table~\ref{tab:shared_recovery}). All variants start from the same privileged checkpoint and receive equal recovery budgets. Full exceeds nonrecurrent, one-shot, and shared-update paths by 0.237, 0.250, and 0.026~dB, respectively. Against the equal-parameter nonrecurrent control, its paired image-bootstrap 95\% interval is $[0.182,0.302]$~dB; the Urban100 improvement is 0.524~dB. Recovery reduces the immediate intervention penalty but preserves a mean advantage for recurrent propagation. Since all variants inherit recurrent initialization, this comparison measures adaptation from a common trained model rather than independent training from scratch.
+Under equal recovery budgets from the same privileged checkpoint, Full retains the highest mean PSNR (Table~\ref{tab:shared_recovery}), exceeding nonrecurrent, one-shot, and shared-update paths by 0.237, 0.250, and 0.026~dB. Against the equal-parameter nonrecurrent control, its paired image-bootstrap 95\% interval is $[0.182,0.302]$~dB, with a 0.524~dB improvement on Urban100. The advantage persists after each path is allowed to adapt, supporting recurrent condition propagation within the tested training range.
 
-\input{tables/shared_update_recovery_20261024}
+\input{tables/ablation_summary_20261116}
 
 \subsection{Depth and Residual Composition}
 \label{sec:depth}
@@ -296,21 +296,21 @@ Our Fourier analysis examines the reconstruction obtained by executing different
 
 
 \noindent\textbf{Degradation-guided stage composition.}
-The composition probe retains all completed group corrections and varies how they are combined. Extending Fig.~\ref{fig:motivation}(b), combination prototypes are estimated on one image split and evaluated on a held-out split across seven blur widths. Matched combinations exceed alternatives by 0.530~dB on Urban100 and 0.410~dB on B100 on average, showing that reconstruction depends on stage composition. The matched uniform-weight retraining control reaches similar mean PSNR (differences below 0.006~dB; supplement), so these observations establish composition sensitivity without establishing an independent accuracy gain from input-dependent weighting.
+The composition probe retains all completed group corrections and varies how they are combined. Extending Fig.~\ref{fig:motivation}(b), combination prototypes are estimated on one image split and evaluated on a held-out split across seven blur widths. Matched combinations exceed alternatives by 0.530~dB on Urban100 and 0.410~dB on B100 on average, linking reconstruction quality to the composition of stage corrections. A separately retrained uniform ensemble reaches comparable accuracy: Uniform minus Full is 0.0058~dB with a paired image-cluster 95\% interval of $[-0.0047,0.0168]$~dB. The interval uses 10,000 stratified bootstrap draws from 657 paired image--width observations: each sampled image retains its three blur widths, and the four datasets receive equal weight. It measures image-sampling uncertainty. Both variants retain residual aggregation; this control does not establish an additional PSNR benefit from input-dependent weighting.
 
 
 
 \subsection{Initialization and LR-only Adaptation}
 
-
 \noindent\textbf{Initialization and adaptation.}
-The initialization and adaptation controls isolate the effect of transferring a trained restoration structure. Under GT-only reconstruction, privileged initialization raises mean PSNR from 28.430 to 28.504~dB and the Urban100 mean from 25.940 to 26.129~dB. Freezing the inherited restoration network reduces Full by 0.256~dB overall and 0.523~dB on Urban100. These controls support transferring a trained restoration structure and subsequently adapting it to LR-derived conditions.
+Table~\ref{tab:transfer_summary} evaluates two aspects of restoration-path transfer. Under GT-only reconstruction, privileged initialization improves both mean and Urban100 PSNR. Under full distillation, adapting the inherited restoration network outperforms freezing it. Each within-group pair shares its objective and schedule. These comparisons support transferring trained restoration computation and adapting it to LR-derived inputs.
 
 
+
+\noindent\textbf{GT-referenced output selection.}
+GT-guided supervision keeps reconstruction active for every patch while selecting the outputs to imitate. In the fixed-patch probe, all 138 privileged-worse patches are excluded from output imitation, verifying the intended selection rule. In matched three-epoch recovery, Gate-on, Gate-off, and No-output-KD reach 28.5203, 28.5280, and 28.5170~dB, respectively. The gate provides an explicit GT-based selection mechanism; its independent PSNR benefit remains unestablished within this recovery budget. Full protocols and branch/route diagnostics are in the supplement.
 
 \balance
-\noindent\textbf{GT-referenced output selection.}
-Supplementary diagnostics show that the LR-only branch can adapt beyond weaker privileged predictions while retaining similar residual routes, with PSNR improvements of up to 1.14~dB in the interior blur interval. In the fixed-patch probe, direct output imitation is disabled on all 138 privileged-worse patches while GT reconstruction remains active, verifying the intended selection rule. In matched three-epoch recovery, Gate-on, Gate-off, and No-output-KD reach 28.5203, 28.5280, and 28.5170~dB, respectively. These finite-budget controls do not establish an independent accuracy gain from the gate; complete protocols and fixed-patch results are provided in the supplement.
 
 \section{Conclusion and Discussion}
 DEDBSR transfers a condition-guided restoration path from a kernel-informed privileged branch to an LR-only branch. Recurrent channel and spatial states guide successive groups, and a degradation-guided ensemble combines their corrections. GT provides reconstruction targets and selects output imitation. Across the reported protocols, DEDBSR achieves leading PSNR in most evaluated conditions. Initialization and adaptation controls support transferring trained restoration computation, while matched recovery supports recurrent propagation within the measured training range.

@@ -1,0 +1,39 @@
+\begin{table*}[!t]
+\begin{minipage}[t]{.485\textwidth}
+\centering
+\caption{Privileged-branch recurrence after matched recovery from the same checkpoint (30 epochs, 90,540 updates). Full and Nonrecurrent have equal active parameter counts. Mean/U100 average twelve/three conditions.}
+\label{tab:shared_recovery}
+\scriptsize
+\setlength{\tabcolsep}{3pt}
+\begin{tabular}{lrrr}
+\toprule
+Condition path & Mean PSNR & U100 PSNR & Mean SSIM\\
+\midrule
+Full & 28.466 & 25.843 & .79322\\
+Nonrecurrent & 28.230 & 25.319 & .79133\\
+One-shot & 28.216 & 25.299 & .79103\\
+Shared update & 28.440 & 25.785 & .79304\\
+\bottomrule
+\end{tabular}
+\end{minipage}\hfill
+\begin{minipage}[t]{.485\textwidth}
+\centering
+\caption{LR-only initialization and adaptation. Each within-group pair shares a training schedule; the two groups use different objectives and budgets. Mean/U100 average twelve/three conditions.}
+\label{tab:transfer_summary}
+\scriptsize
+\setlength{\tabcolsep}{5pt}
+\begin{tabular}{lrr}
+\toprule
+Configuration & Mean PSNR & U100 PSNR\\
+\midrule
+\multicolumn{3}{l}{\textit{GT-only reconstruction: initialization}}\\
+From scratch & 28.430 & 25.940\\
+Privileged initialization & 28.504 & 26.129\\
+\midrule
+\multicolumn{3}{l}{\textit{Full distillation: restoration adaptation}}\\
+Full & 28.513 & 26.108\\
+Frozen restoration & 28.257 & 25.585\\
+\bottomrule
+\end{tabular}
+\end{minipage}
+\end{table*}
