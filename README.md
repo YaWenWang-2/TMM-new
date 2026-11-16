@@ -1,6 +1,6 @@
 # DEDBSR manuscript
 
-Current manuscript snapshot, synchronized on 2026-11-12.
+Current manuscript snapshot, synchronized on 2026-11-16.
 
 ## Overleaf
 
@@ -17,7 +17,7 @@ After changing files included by the main paper, compile `main.tex` first or use
 
 ## Files
 
-- `main.tex`: main paper (10 pages in the supplied PDF).
+- `main.tex`: main paper (8 body pages plus 2 reference pages in the supplied PDF).
 - `supplementary.tex`: supplementary material (7 pages in the supplied PDF).
 - `figures/` and `tables/`: all figures and table sources used by either document.
 - `references.bib`, `IEEEtran.cls`, `IEEEtran.bst`: bibliography and document style.

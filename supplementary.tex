@@ -79,7 +79,7 @@ Distributed training averages device-local losses; it does not normalize by a gl
 \end{equation}
 GT acts on every joint-stage patch, but not during condition warm-up. Closing the output gate leaves condition alignment and inherited initialization intact. Thus it removes direct output imitation on teacher-worse patches, without guaranteeing freedom from all teacher-induced errors. In the frozen 400-patch risk probe, the rule closed all 138 teacher-worse patches and opened all 262 teacher-better patches. This verifies the intended risk partition only; it does not imply a positive post-training gain.
 
-Student training uses four GPUs, 16 samples per GPU, Adam $(0.9,0.99)$, gradient clipping at 1.0, and EMA decay 0.999. The SR learning rate warms up for five epochs to $2\times10^{-4}$, then decays to $10^{-6}$ over 600 SR epochs. Table~\ref{tab:supp_schedule} specifies the historical controls in main Table~\ref{main-tab:controls} at the designated student model; their full metrics appear in Table~\ref{tab:supp_transfer_complete}.
+Student training uses four GPUs, 16 samples per GPU, Adam $(0.9,0.99)$, gradient clipping at 1.0, and EMA decay 0.999. The SR learning rate warms up for five epochs to $2\times10^{-4}$, then decays to $10^{-6}$ over 600 SR epochs. Table~\ref{tab:supp_schedule} specifies the historical controls at the designated student model; their full metrics appear in Table~\ref{tab:supp_transfer_complete}.
 
 Full and F1 have matching recorded teacher initialization, different-budget batch-64 training, and 100 condition-warm-up plus 500 reconstruction epochs. F1 removes direct output KD and exceeds Full by 0.0094~dB in the twelve-condition mean; each wins six conditions. This historical comparison does not isolate the gate, because removing output KD also removes all direct teacher-output supervision.
 
@@ -92,6 +92,17 @@ Each branch also evaluates the separate 100-image Urban100 stress condition at $
 The fixed teacher-worse subset is defined at initialization, before any recovery outcome is observed. On its 138 patches, Gate-on minus Gate-off is $-0.0694$~dB, with 95\% fixed-patch bootstrap interval $[-0.0824,-0.0561]$~dB. Over all 400 fixed patches, the difference is $-0.0704$~dB with interval $[-0.0840,-0.0571]$; Gate-on minus No-output-KD is $-0.0036$~dB with interval $[-0.0162,+0.0092]$.
 
 These intervals use 10,000 resamples and measure patch-sampling uncertainty, not training-run variability. An additional output-guidance isolation removes condition KD while retaining GT reconstruction and output KD; Gate-on minus Gate-off is $-0.0474$~dB over all 400 patches, with 95\% interval $[-0.0609,-0.0349]$~dB. This isolation differs from historical F4, which has no GT loss. The finite recovery results separate the correctness of the risk-partition rule from its training effect and do not establish a positive causal accuracy gain for the gate.
+
+Table~\ref{tab:controls} reports the initialization and adaptation controls, including the GT-only comparison with training from scratch. Figure~\ref{fig:supp_transfer_diagnostics} summarizes the privileged/LR-only output comparison and residual-route diagnostics.
+
+\input{tables/inheritance_controls_main_20261013}
+
+\begin{figure}[!t]
+\centering
+\includegraphics[width=\columnwidth]{figures/fig_transfer_interface_main.png}
+\caption{\textbf{Distillation and LR-only adaptation diagnostics.} (a) PSNR of the privileged and LR-only branches across blur widths; (b) cosine similarity of their residual routes; (c) PSNR loss after forcing a route from another blur width. The probe quantifies LR-only adaptation and route consistency; gate diagnostics are reported alongside the student-training protocol.}
+\label{fig:supp_transfer_diagnostics}
+\end{figure}
 
 \input{tables/supp_schedule}
 \input{tables/supp_transfer_complete}

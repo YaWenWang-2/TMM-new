@@ -4,6 +4,7 @@
 \documentclass[10pt,journal,letterpaper]{IEEEtran}
 \input{preamble}
 \input{layout_spacing}
+\usepackage{balance}
 \title{DEDBSR: Deep Ensemble Distillation for Blind Image Super-Resolution}
 \input{authors}
 \markboth{DEDBSR: Manuscript for IEEE Transactions on Multimedia}{DEDBSR}
@@ -242,12 +243,12 @@ The nonnegative loss weights balance these terms, and $\lambda_{\mathrm{out}}(t)
 
 \section{Experimental Evaluation}
 \label{sec:experiments}
-We evaluate reconstruction accuracy against blind-SR baselines, followed by analyses of recurrent conditioning, depth-residual composition, and distillation-driven LR-only adaptation.
+We evaluate blind-SR accuracy, recurrent conditioning, residual composition, and LR-only adaptation.
 
 \subsection{Evaluation Protocol}
-We evaluate $\times4$ BSR on Set5~\cite{bevilacqua2012set5}, Set14~\cite{zeyde2012set14}, B100~\cite{martin2001bsd}, and Urban100~\cite{huang2015urban100}. Training uses 3,450 DF2K images from DIV2K~\cite{agustsson2017div2k} and Flickr2K~\cite{lim2017edsr}, with random flips/rotations and $64\times64$ LR crops. The primary degradation is $21\times21$ isotropic Gaussian blur followed by noise-free bicubic downsampling. The privileged branch samples blur widths uniformly within $[0.2,4]$; the LR-only branch uses a mixture distribution over the same interval, with increased density around the primary benchmark widths. The complete sampling procedure is specified in the supplement.
+We evaluate $\times4$ BSR on Set5~\cite{bevilacqua2012set5}, Set14~\cite{zeyde2012set14}, B100~\cite{martin2001bsd}, and Urban100~\cite{huang2015urban100}. Training uses 3,450 DF2K images from DIV2K~\cite{agustsson2017div2k} and Flickr2K~\cite{lim2017edsr}, with random flips/rotations and $64\times64$ LR crops. The primary degradation is $21\times21$ isotropic Gaussian blur followed by noise-free bicubic downsampling. The privileged branch samples blur widths uniformly within $[0.2,4]$; the LR-only branch uses a mixture distribution over the same interval, with increased density around the primary benchmark widths.
 
-LR-only training uses four GPUs with global batch 64 and Adam optimization. We apply condition warm-up followed by joint reconstruction training, and evaluate exponential moving average (EMA) weights. Table~\ref{tab:main} retains the original benchmark model; the additional comparison and historical transfer controls use the designated LR-only checkpoint after the recorded training stages. Schedules and control-specific budgets are recorded in the supplement.
+LR-only training uses four GPUs with global batch 64 and Adam optimization. We apply condition warm-up followed by joint reconstruction training, and evaluate exponential moving average (EMA) weights. Table~\ref{tab:main} retains the original benchmark model; the additional comparison and historical transfer controls use the designated LR-only checkpoint after the recorded training stages. The supplement details sampling, training schedules, and control-specific budgets.
 
 We compute peak signal-to-noise ratio (PSNR) and structural similarity (SSIM) on quantized luminance after removing four boundary pixels. Dataset--width scores average image-level metrics; aggregate control means weight the twelve conditions equally.
 
@@ -278,10 +279,10 @@ The anisotropic/noisy experiment extends the evaluation beyond noise-free isotro
 \subsection{Recurrent Condition Guidance}
 We first examine how trained privileged branches depend on their condition paths, then test whether that dependence persists after recovery training. \emph{Nonrecurrent} retains group-specific update modules but computes each group's state from the initial conditions, preserving parameter count. \emph{One-shot} bypasses updates, and \emph{shared update} reuses the first group's update modules while retaining recurrence. The trunk, residual router, fusion, and output head remain fixed during the initial interventions; recovery training subsequently optimizes each variant's active modules.
 
-Fixed-model interventions on two independently trained standard recurrent privileged branches reduce PSNR when recurrence is removed, bypassed, or shared. Removing recurrence loses 3.354--5.136~dB for the first branch and 4.113--5.255~dB for the second at the primary widths. Additional in-support widths show the same mean ordering, including a branch trained with an alternative update budget. The supplement reports the repeated-checkpoint and expanded-width tables, their paired intervals, and out-of-support exceptions. These interventions diagnose dependence on a trained condition path; matched recovery below tests whether its advantage persists after adaptation.
+Fixed-model interventions on two independently trained privileged branches reduce PSNR when recurrent updates are removed, bypassed, or shared. The same mean ordering holds at additional in-support blur widths; the supplement reports complete results and out-of-support exceptions. These probes measure reliance on the trained condition path, rather than the performance of independently trained alternatives. Matched recovery therefore allows each active path to adapt before comparing the resulting reconstruction accuracy.
 
 \noindent\textbf{Recovery after changing the condition path.}
-Full retains the highest mean PSNR after matched recovery (Table~\ref{tab:shared_recovery}). All variants start from the same privileged checkpoint and receive equal recovery budgets. Full exceeds nonrecurrent, one-shot, and shared-update paths by 0.237, 0.250, and 0.026~dB, respectively. Against the equal-parameter nonrecurrent control, its paired image-bootstrap 95\% interval is $[0.182,0.302]$~dB; the Urban100 improvement is 0.524~dB. Recovery reduces the immediate intervention penalty but preserves a mean advantage for recurrent propagation.
+Full retains the highest mean PSNR after matched recovery (Table~\ref{tab:shared_recovery}). All variants start from the same privileged checkpoint and receive equal recovery budgets. Full exceeds nonrecurrent, one-shot, and shared-update paths by 0.237, 0.250, and 0.026~dB, respectively. Against the equal-parameter nonrecurrent control, its paired image-bootstrap 95\% interval is $[0.182,0.302]$~dB; the Urban100 improvement is 0.524~dB. Recovery reduces the immediate intervention penalty but preserves a mean advantage for recurrent propagation. Since all variants inherit recurrent initialization, this comparison measures adaptation from a common trained model rather than independent training from scratch.
 
 \input{tables/shared_update_recovery_20261024}
 
@@ -297,15 +298,9 @@ Our Fourier analysis examines the reconstruction obtained by executing different
 \noindent\textbf{Degradation-guided stage composition.}
 The composition probe retains all completed group corrections and varies how they are combined. Extending Fig.~\ref{fig:motivation}(b), combination prototypes are estimated on one image split and evaluated on a held-out split across seven blur widths. Matched combinations exceed alternatives by 0.530~dB on Urban100 and 0.410~dB on B100 on average, showing that reconstruction depends on stage composition. The matched uniform-weight retraining control reaches similar mean PSNR (differences below 0.006~dB; supplement), so these observations establish composition sensitivity without establishing an independent accuracy gain from input-dependent weighting.
 
-\begin{figure}[!t]
-\centering
-\includegraphics[width=\columnwidth]{figures/fig_transfer_interface_main.png}
-\caption{\textbf{Distillation and LR-only adaptation diagnostics.} (a) PSNR of the privileged and LR-only branches across blur widths; (b) cosine similarity of their residual routes; (c) PSNR loss after forcing a route from another blur width. The probe quantifies LR-only adaptation and route consistency; complete gate diagnostics are provided in the supplement.}
-\label{fig:transfer}
-\end{figure}
+
 
 \subsection{Initialization and LR-only Adaptation}
-\input{tables/inheritance_controls_main_20261013}
 
 
 \noindent\textbf{Initialization and adaptation.}
@@ -313,14 +308,17 @@ The initialization and adaptation controls isolate the effect of transferring a 
 
 
 
+\balance
 \noindent\textbf{GT-referenced output selection.}
-Figure~\ref{fig:transfer} shows that the LR-only branch can adapt beyond weaker privileged predictions while retaining similar residual routes, with PSNR improvements of up to 1.14~dB in the interior blur interval. In the fixed-patch probe, direct output imitation is disabled on all 138 privileged-worse patches while GT reconstruction remains active, verifying the intended selection rule. In matched three-epoch recovery, Gate-on, Gate-off, and No-output-KD reach 28.5203, 28.5280, and 28.5170~dB, respectively. These finite-budget controls do not establish an independent accuracy gain from the gate; complete protocols and fixed-patch results are provided in the supplement.
+Supplementary diagnostics show that the LR-only branch can adapt beyond weaker privileged predictions while retaining similar residual routes, with PSNR improvements of up to 1.14~dB in the interior blur interval. In the fixed-patch probe, direct output imitation is disabled on all 138 privileged-worse patches while GT reconstruction remains active, verifying the intended selection rule. In matched three-epoch recovery, Gate-on, Gate-off, and No-output-KD reach 28.5203, 28.5280, and 28.5170~dB, respectively. These finite-budget controls do not establish an independent accuracy gain from the gate; complete protocols and fixed-patch results are provided in the supplement.
 
 \section{Conclusion and Discussion}
 DEDBSR transfers a condition-guided restoration path from a kernel-informed privileged branch to an LR-only branch. Recurrent channel and spatial states guide successive groups, and a degradation-guided ensemble combines their corrections. GT provides reconstruction targets and selects output imitation. Across the reported protocols, DEDBSR achieves leading PSNR in most evaluated conditions. Initialization and adaptation controls support transferring trained restoration computation, while matched recovery supports recurrent propagation within the measured training range.
 
-The framework couples inherited restoration computation with GT-referenced target selection. The LR-only branch inherits and adapts the restoration path, with GT reconstruction active for every adaptation sample and output imitation selected by relative error. Extending this approach to broader real-world degradations is a direction for future work.
+Extending this approach to broader real-world degradations is a direction for future work.
 
+\clearpage
+\nobalance
 \begingroup
 \emergencystretch=2em
 \tolerance=2000
