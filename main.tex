@@ -64,8 +64,10 @@ StableSR, DiffBIR, and SeeSR adapt pretrained diffusion priors through restorati
 \subsection{Overview and Notation}
 \label{sec:overview}
 
+\looseness=-1
 Figure~\ref{fig:architecture} separates the restoration path from the training-only supervision paths. Let $\mathbf y\in\mathbb R^{3\times H\times W}$ be an LR image and $\mathbf x\in\mathbb R^{3\times rH\times rW}$ its HR target, related by $\mathbf y=(\mathbf x*\mathbf k)\!\downarrow_r+\mathbf n$. Here $\mathbf k$ is a blur kernel, $r$ is the scale factor, and $\mathbf n$ is additive noise. The privileged branch, denoted by $P$, receives $\mathbf y$ and a spatially broadcast PCA encoding $\mathbf d(\mathbf k)$ of the kernel. The LR-only branch, denoted by $L$, receives only $\mathbf y$.
 
+\looseness=-1
 Each branch has a condition encoder, a convolutional stem, a stack of degradation recurrent groups (DRGs), degradation-guided dynamic weighting (DG), and a reconstruction head. Both generators have the same architecture, but their parameters are separate after initialization. We use $a\in\{P,L\}$ to index branches and omit this superscript on learnable operators when the branch is clear. The condition states are $\mathbf c_i^a\in\mathbb R^{d_c}$ and $\mathbf s_i^a\in\mathbb R^{d_s\times H\times W}$; the restoration features are $\mathbf f_i^a\in\mathbb R^{C\times H\times W}$. There are $N$ groups and $M$ degradation-modulated blocks (DMBs) per group. We write $[\cdot,\cdot]$ for channel concatenation, $\odot$ for elementwise multiplication with broadcasting, $\phi$ for GELU, and $\sigma$ for the sigmoid function. The framework's encoder lanes, panels (a)--(d), and three-input GT supervision path correspond to the components below.
 
 \begin{figure*}[!t]
@@ -75,6 +77,8 @@ Each branch has a condition encoder, a convolutional stem, a stack of degradatio
 \label{fig:architecture}
 \end{figure*}
 
+\begingroup
+\predisplaypenalty=0
 \subsection{Condition Encoding}
 \label{sec:condition_encoding}
 
@@ -84,6 +88,7 @@ The condition encoders extract guidance separately from the features used for re
 \mathbf q^L=E_L(\mathbf y).
 \label{eq:encoder}
 \end{equation}
+\endgroup
 The privileged encoder recalibrates convolutional features through squeeze-and-excitation. The LR-only encoder has a separate convolutional path. The two encoders produce condition features with compatible shapes and use separate parameters.
 
 The GAP--Linear and PixelShuffle--Conv heads convert the encoder features in Eq.~\eqref{eq:encoder} into the initial conditions:
