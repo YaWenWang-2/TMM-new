@@ -127,13 +127,13 @@ Panel (d) expands how a DMB uses the two conditions. Split its input $\mathbf z$
 \end{equation}
 The spatial gate $\mathbf a_s$ has the shape of $\mathbf z_s$, while the channel gate $\mathbf a_c$ is broadcast over spatial positions. A partial convolution acts on the gated spatial slice, and the channel slice is rescaled directly. The block combines them through
 \begin{equation}
-\begin{aligned}
-\widetilde{\mathbf z}&=[\operatorname{PConv}(\mathbf z_s\odot\mathbf a_s),\;
+\begin{gathered}
+\widetilde{\mathbf z}=[\operatorname{PConv}(\mathbf z_s\odot\mathbf a_s),\;
                          \mathbf z_c\odot\mathbf a_c],\\
-\mathbf v&=\operatorname{LN}\!\left(\operatorname{DWConv}(\phi(\widetilde{\mathbf z}))\right),\\
+\mathbf v=\operatorname{LN}\!\left(\operatorname{DWConv}(\phi(\widetilde{\mathbf z}))\right),\\
 \operatorname{DMB}(\mathbf z;\mathbf c_i^a,\mathbf s_i^a)
- &=\mathbf z+\boldsymbol\gamma\odot\operatorname{FFN}(\mathbf v).
-\end{aligned}
+ =\mathbf z+\boldsymbol\gamma\odot\operatorname{FFN}(\mathbf v).
+\end{gathered}
 \label{eq:dmb}
 \end{equation}
 In Eq.~\eqref{eq:dmb}, $\operatorname{DWConv}$ is a depthwise convolution, $\operatorname{LN}$ normalizes channels at each spatial location, $\operatorname{FFN}$ is an expansion--GELU--projection mapping, and $\boldsymbol\gamma$ is a learnable channelwise residual scale. The gates in Eq.~\eqref{eq:dmb_gates} correspond to the two sigmoid paths in panel (d); the remaining operators follow the concatenation in the same panel.
