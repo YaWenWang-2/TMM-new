@@ -1,5 +1,6 @@
 % Adapted from the distributed IEEEtran bare_jrnl.tex, V1.4b, Michael Shell.
 % TMM figure replacement, independent copy dated 2026-10-20.
+\ifdefined\pdfminorversion\pdfminorversion=7\fi
 \documentclass[10pt,journal,letterpaper]{IEEEtran}
 \input{preamble}
 \input{layout_spacing}
@@ -69,7 +70,7 @@ Each branch has a condition encoder, a convolutional stem, a stack of degradatio
 
 \begin{figure*}[!t]
 \centering
-\includegraphics[width=\textwidth]{figures/distillation_framework_three_inputs_v17_corrected.pdf}
+\includegraphics[width=\textwidth]{figures/distillation_framework_three_inputs_v32_checked_vector.pdf}
 \caption{\textbf{DEDBSR restoration and distillation framework.} The privileged branch receives an LR image and a kernel-derived condition map, while the LR-only branch receives the LR image alone. The encoder heads supply initial channel and spatial conditions. RPU-c and RPU-s, expanded in (a,b), update the conditions before each degradation recurrent group. DMB in (d) applies channel and spatial modulation; DG in (c) weights completed group corrections. Reconstruct includes the output projection, global stem skip, and upsampling head. Dashed condition paths align the initial conditions. The three-input GT supervision block uses both reconstructions and GT to combine GT reconstruction with selective output imitation. The LR-only generator inherits the privileged generator at initialization; only the LR-only branch is used at inference.}
 \label{fig:architecture}
 \end{figure*}

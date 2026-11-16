@@ -6,7 +6,7 @@
 \centering\footnotesize
 \setlength{\tabcolsep}{4.5pt}
 \renewcommand{\arraystretch}{1.03}
-\begin{tabular}{clrrrrrrrrr}
+\begin{tabular*}{\textwidth}{@{\extracolsep{\fill}}clrrrrrrrrr@{}}
 \toprule
 Noise & Method & \raisebox{-0.35\height}{\includegraphics[height=0.25in]{figures/kernels/kernel_K1.png}} & \raisebox{-0.35\height}{\includegraphics[height=0.25in]{figures/kernels/kernel_K2.png}} & \raisebox{-0.35\height}{\includegraphics[height=0.25in]{figures/kernels/kernel_K3.png}} & \raisebox{-0.35\height}{\includegraphics[height=0.25in]{figures/kernels/kernel_K4.png}} & \raisebox{-0.35\height}{\includegraphics[height=0.25in]{figures/kernels/kernel_K5.png}} & \raisebox{-0.35\height}{\includegraphics[height=0.25in]{figures/kernels/kernel_K6.png}} & \raisebox{-0.35\height}{\includegraphics[height=0.25in]{figures/kernels/kernel_K7.png}} & \raisebox{-0.35\height}{\includegraphics[height=0.25in]{figures/kernels/kernel_K8.png}} & \raisebox{-0.35\height}{\includegraphics[height=0.25in]{figures/kernels/kernel_K9.png}}\\
 \midrule
@@ -30,5 +30,5 @@ Noise & Method & \raisebox{-0.35\height}{\includegraphics[height=0.25in]{figures
  & LightBSR & \second{26.18} & \second{26.10} & \second{25.41} & \second{25.27} & \second{25.24} & \second{25.19} & \second{25.08} & \second{24.83} & \best{24.53}\\
  & \textbf{DEDBSR} & \best{26.21} & \best{26.13} & \best{25.43} & \best{25.28} & \best{25.26} & \best{25.20} & \best{25.09} & \best{24.84} & \best{24.53}\\
 \bottomrule
-\end{tabular}
+\end{tabular*}
 \end{table*}
